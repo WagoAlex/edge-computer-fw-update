@@ -34,6 +34,19 @@ API stands in for.
 - **Self-signed only.** Bundles are signed with a self-signed cert; they install
   via `rauc` with the baked keyring but are rejected by a genuine PFC/TP600 WDA
   (production-signature check). Don't claim otherwise.
+- **WAGO nomenclature for every new resource - no exceptions.** Do NOT invent
+  REST paths like `/update/start-embedded` or `/update/status`. Model everything
+  as WDA parameters/methods under `0-0-<feature>-<name>` and drive it through
+  `POST /wda/methods/<id>/runs` or `GET /wda/parameters/<id>`. Extend an existing
+  method's inArgs before adding a new resource (e.g. embedded flash = the standard
+  `0-0-firmwareupdate-start` with empty `UploadFiles`, not a new endpoint). The
+  only allowed non-WDA path is `/health` (container liveness, auth-exempt).
+- **Network resources follow WAGO too, and never touch IPs.** When adding
+  networking (NIC bridging - e.g. bridging ports X11/X12, bridge mode; DNS;
+  routes; hostname), use WAGO's parameter scheme and WAGO port names (`X1`,
+  `X2`, `X11`, `X12`, ...), not Linux `ethN`/invented names. NEVER modify or
+  hardcode a device's IP addresses as a side effect - read/report them, change
+  them only when that is the explicit task.
 
 ## Layout & the moving parts
 

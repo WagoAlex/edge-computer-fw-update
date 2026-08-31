@@ -115,14 +115,6 @@ def rauc_info(path):
     return True, (ver.group(1) if ver else None), (comp.group(1) if comp else None), None
 
 
-def slots():
-    r = run(["rauc", "status"])
-    booted = re.search(r"^Booted from:\s*(.*)$", r.stdout, re.M)
-    active = re.search(r"^Activated:\s*(.*)$", r.stdout, re.M)
-    return (booted.group(1).strip() if booted else None,
-            active.group(1).strip() if active else None)
-
-
 def _install_worker(path):
     logline(f"rauc install {path}")
     proc = subprocess.Popen(["rauc", "install", path],
@@ -147,25 +139,6 @@ def _install_worker(path):
             st["errorcause"] = 200 if "signature" in blob else 600
             st["debuginfo"] = "\n".join(tail[-8:])
             logline(f"install FAILED -> errorcause {st['errorcause']}")
-
-
-def start_embedded():
-    """Install the image baked into the container - no upload. Stages the
-    embedded bundle to the host-visible dir (host rauc.service reads host paths)
-    then installs to the inactive slot. Drives the same state machine as `start`."""
-    with _lock:
-        if st["status"] == 3:
-            return False, "already installing"
-        if not os.path.isfile(EMBEDDED):
-            return False, f"no embedded bundle at {EMBEDDED}"
-    os.makedirs(STAGE_DIR, exist_ok=True)
-    staged = os.path.join(STAGE_DIR, "embedded.raucb")
-    shutil.copyfile(EMBEDDED, staged)
-    with _lock:
-        st.update(status=3, progress=0, errorcause=0, debuginfo="")
-    logline("start-embedded -> Started")
-    threading.Thread(target=_install_worker, args=(staged,), daemon=True).start()
-    return True, staged
 
 
 # ---- method implementations (return (outArgs|None, err_dsc|None, detail)) ----
@@ -201,12 +174,24 @@ def m_start(inargs):
     with _lock:
         if st["status"] < 2:
             return None, DSC_NOT_ACTIVATED, "firmware update not activated"
-        if not ids or ids[0] not in st["uploads"]:
-            return None, "1", "unknown upload id"
-        path = st["uploads"][ids[0]]["path"]
+        if ids:                                          # install an uploaded bundle
+            if ids[0] not in st["uploads"]:
+                return None, "1", "unknown upload id"
+            path = st["uploads"][ids[0]]["path"]
+            embedded = False
+        else:                                            # no UploadFiles -> built-in bundle
+            if not os.path.isfile(EMBEDDED):
+                return None, "1", "no embedded bundle and no UploadFiles given"
+            path = None
+            embedded = True
+    if embedded:
+        os.makedirs(STAGE_DIR, exist_ok=True)
+        path = os.path.join(STAGE_DIR, "embedded.raucb")
+        shutil.copyfile(EMBEDDED, path)
+    with _lock:
         st.update(status=3, progress=0)                  # Started
     threading.Thread(target=_install_worker, args=(path,), daemon=True).start()
-    logline(f"start {ids} -> Started")
+    logline(f"start {'embedded' if embedded else ids} -> Started")
     return {}, None, None
 
 
@@ -358,16 +343,6 @@ class H(BaseHTTPRequestHandler):
                 return self._send(404, {"errors": [{"status": "404", "detail": pid}]})
             return self._send(200, {"data": {"id": pid, "type": "parameter-definitions",
                 "attributes": {"enum": [{"value": k, "name": v} for k, v in table.items()]}}})
-        if path == "/update/status":  # convenience aggregate (non-WDA)
-            booted, active = slots()
-            with _lock:
-                s = dict(st)
-            s.pop("uploads", None)
-            return self._send(200, {**s, "status_name": STATUS_NAMES.get(s["status"]),
-                                    "errorcause_name": ERROR_CAUSES.get(s["errorcause"]),
-                                    "booted_slot": booted, "next_boot_slot": active,
-                                    "order_number": ORDER, "firmware_version": FW_VERSION},
-                              "application/json")
         self._send(404, {"errors": [{"status": "404", "detail": self.path}]})
 
     def do_POST(self):
@@ -376,13 +351,6 @@ class H(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0].rstrip("/")
         n = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(n) if n else b""
-        if path == "/update/start-embedded":
-            # convenience: flash the image baked into the container, no upload
-            ok, info = start_embedded()
-            if not ok:
-                return self._send(409, {"errors": [{"status": "409", "detail": info}]})
-            return self._send(202, {"status": "installing", "bundle": "embedded",
-                                    "staged": info}, "application/json")
         m = re.match(r"/wda/methods/(.+)/runs$", path)
         if m:
             mid = m.group(1)

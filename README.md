@@ -51,11 +51,14 @@ reboot                                                # activate; bad boot auto-
 ```
 
 **Run - WDA-compatible REST API** (long-running): use
-`container/docker-compose.server.yml`, or the same service with
-`environment: { MODE: server }` and `ports: ["8080:8080"]`. Then:
+`container/docker-compose.server.yml` (HTTPS + Basic auth on :443, like PFC/CC
+WDA), or the same service with `environment: { MODE: server, WDA_PASSWORD: ... }`
+and `ports: ["443:8443"]`. Then:
 ```bash
-curl -sk http://EDGE:8080/update/status
-curl -sk http://EDGE:8080/wda/parameters/0-0-firmwareupdate-status
+curl -sk -u admin:PASS https://EDGE/wda/parameters/0-0-firmwareupdate-status
+# flash the built-in image: activate, then start with NO UploadFiles
+curl -sk -u admin:PASS -X POST https://EDGE/wda/methods/0-0-firmwareupdate-activate/runs -d '{"data":{"attributes":{"inArgs":{}}}}'
+curl -sk -u admin:PASS -X POST https://EDGE/wda/methods/0-0-firmwareupdate-start/runs -d '{"data":{"attributes":{"inArgs":{}}}}'
 ```
 
 It installs to the **inactive** A/B slot via the host `rauc.service`,
@@ -200,23 +203,31 @@ Status params: `0-0-firmwareupdate-status` (enum 0-9), `-progress` (0-100),
 `/wda/parameter-definitions/<id>/enum`. Service root `GET /wda` returns a
 `devices` document with `meta.version`.
 
-Direct calls:
+Direct calls (HTTPS + Basic auth, like PFC/CC WDA):
 ```bash
-IP=192.168.2.17
+IP=192.168.2.17; A="-u admin:PASS"   # PASS = WDA_PASSWORD
 # activate
-curl -sk -X POST "http://$IP:8080/wda/methods/0-0-firmwareupdate-activate/runs?result-behavior=sync" \
+curl -sk $A -X POST "https://$IP/wda/methods/0-0-firmwareupdate-activate/runs?result-behavior=sync" \
   -H 'Content-Type: application/vnd.api+json' \
   -d '{"data":{"type":"runs","attributes":{"inArgs":{"KeepCustomerApplication":{"value":false}}}}}'
-# reserve an upload id
-curl -sk -X POST "http://$IP:8080/wda/methods/0-0-firmwareupdate-getuploadids/runs" \
-  -H 'Content-Type: application/vnd.api+json' \
+
+# --- flash the BUILT-IN image: start with NO UploadFiles ---
+curl -sk $A -X POST "https://$IP/wda/methods/0-0-firmwareupdate-start/runs" \
+  -d '{"data":{"type":"runs","attributes":{"inArgs":{}}}}'
+
+# --- OR flash an UPLOADED bundle ---
+# reserve an upload id, PATCH chunks, then start with the id:
+curl -sk $A -X POST "https://$IP/wda/methods/0-0-firmwareupdate-getuploadids/runs" \
   -d '{"data":{"type":"runs","attributes":{"inArgs":{"FileNames":{"value":["edge.raucb"]}}}}}'
-# upload chunks -> PATCH /files/{id} (multipart/byteranges, Content-Range)
-# start, then poll:
-curl -sk "http://$IP:8080/wda/parameters/0-0-firmwareupdate-status"
-curl -sk "http://$IP:8080/wda/parameters/0-0-firmwareupdate-progress"
-# one-call human view:
-curl -sk "http://$IP:8080/update/status"
+# upload chunks -> PATCH /files/{id} (multipart/byteranges, Content-Range), then:
+# curl ... -d '{"data":{"attributes":{"inArgs":{"UploadFiles":{"value":["<id>"]}}}}}'  .../0-0-firmwareupdate-start/runs
+
+# poll
+curl -sk $A "https://$IP/wda/parameters/0-0-firmwareupdate-status"
+curl -sk $A "https://$IP/wda/parameters/0-0-firmwareupdate-progress"
+# finish + clear once status reaches 4 (Unconfirmed)
+curl -sk $A -X POST "https://$IP/wda/methods/0-0-firmwareupdate-finish/runs" -d '{"data":{"attributes":{"inArgs":{}}}}'
+curl -sk $A -X POST "https://$IP/wda/methods/0-0-firmwareupdate-clear/runs"  -d '{"data":{"attributes":{"inArgs":{}}}}'
 ```
 
 ## Honest boundaries
