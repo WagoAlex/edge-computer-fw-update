@@ -10,6 +10,57 @@ bundle from a running edge, wraps it as a `.wup`, and ships a container that
 installs it to the inactive slot - either one-shot or behind a REST API shaped
 like WAGO's production WDA.
 
+## Using the pre-built image (no build required)
+
+The published image is **self-contained** - the firmware bundle is baked in, so
+you don't clone this repo or build anything. You only need the image and a
+one-time device prep.
+
+Image: `wagoalex/wago-fw-update-edge-computer`
+- `bundle-latest` / `bundle-V040100_IX05` - bundle embedded (use these)
+- `rauc` - client only, mount your own bundle from the device
+
+**One-time device prep** (a factory edge; images built by this repo already
+carry it). On the edge as root:
+```bash
+# trust the bundle's self-signed line
+cp /etc/rauc/cert.pem /etc/rauc/keyring.pem 2>/dev/null || true   # or install your keyring
+grep -q '^\[keyring\]' /etc/rauc/system.conf || \
+  printf '\n[keyring]\npath=/etc/rauc/keyring.pem\n' >> /etc/rauc/system.conf
+# RAUC mounts verity bundles via loop + dm-verity
+printf 'loop\ndm-verity\n' > /etc/modules-load.d/rauc.conf
+modprobe loop dm-verity
+```
+
+**Run - one-shot flash** (Portainer stack or CLI on the edge):
+```yaml
+services:
+  edge-fwupdate:
+    image: wagoalex/wago-fw-update-edge-computer:bundle-latest
+    restart: "no"
+    environment:
+      DRY_RUN: "true"     # verify only; set "false" to flash, REBOOT "true" to reboot after
+    volumes:
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+      - /docker/rauc-stage:/docker/rauc-stage
+```
+```bash
+DRY_RUN=false docker compose run --rm edge-fwupdate   # writes the inactive slot
+reboot                                                # activate; bad boot auto-falls-back
+```
+
+**Run - WDA-compatible REST API** (long-running): use
+`container/docker-compose.server.yml`, or the same service with
+`environment: { MODE: server }` and `ports: ["8080:8080"]`. Then:
+```bash
+curl -sk http://EDGE:8080/update/status
+curl -sk http://EDGE:8080/wda/parameters/0-0-firmwareupdate-status
+```
+
+It installs to the **inactive** A/B slot via the host `rauc.service`,
+unprivileged. Reboot activates; a bad boot auto-falls-back to the running slot.
+
 ## Layout
 
 ```
