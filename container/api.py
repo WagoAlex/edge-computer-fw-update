@@ -34,6 +34,7 @@ import re
 import subprocess
 import threading
 import uuid
+import shutil
 import base64
 import hmac
 import ssl
@@ -146,6 +147,25 @@ def _install_worker(path):
             st["errorcause"] = 200 if "signature" in blob else 600
             st["debuginfo"] = "\n".join(tail[-8:])
             logline(f"install FAILED -> errorcause {st['errorcause']}")
+
+
+def start_embedded():
+    """Install the image baked into the container - no upload. Stages the
+    embedded bundle to the host-visible dir (host rauc.service reads host paths)
+    then installs to the inactive slot. Drives the same state machine as `start`."""
+    with _lock:
+        if st["status"] == 3:
+            return False, "already installing"
+        if not os.path.isfile(EMBEDDED):
+            return False, f"no embedded bundle at {EMBEDDED}"
+    os.makedirs(STAGE_DIR, exist_ok=True)
+    staged = os.path.join(STAGE_DIR, "embedded.raucb")
+    shutil.copyfile(EMBEDDED, staged)
+    with _lock:
+        st.update(status=3, progress=0, errorcause=0, debuginfo="")
+    logline("start-embedded -> Started")
+    threading.Thread(target=_install_worker, args=(staged,), daemon=True).start()
+    return True, staged
 
 
 # ---- method implementations (return (outArgs|None, err_dsc|None, detail)) ----
@@ -356,6 +376,13 @@ class H(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0].rstrip("/")
         n = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(n) if n else b""
+        if path == "/update/start-embedded":
+            # convenience: flash the image baked into the container, no upload
+            ok, info = start_embedded()
+            if not ok:
+                return self._send(409, {"errors": [{"status": "409", "detail": info}]})
+            return self._send(202, {"status": "installing", "bundle": "embedded",
+                                    "staged": info}, "application/json")
         m = re.match(r"/wda/methods/(.+)/runs$", path)
         if m:
             mid = m.group(1)
