@@ -61,6 +61,68 @@ curl -sk http://EDGE:8080/wda/parameters/0-0-firmwareupdate-status
 It installs to the **inactive** A/B slot via the host `rauc.service`,
 unprivileged. Reboot activates; a bad boot auto-falls-back to the running slot.
 
+## Full docker-compose reference (every option)
+
+One service showing all configurable env vars and volumes. Delete what you
+don't need - only the three volumes and (for a factory edge) the keyring are
+actually required. `MODE` selects behaviour; options for the other mode are
+ignored.
+
+```yaml
+services:
+  edge-fwupdate:
+    image: wagoalex/wago-fw-update-edge-computer:bundle-latest
+    # bundle-latest / bundle-V040100_IX05 = self-contained (bundle embedded)
+    # rauc = client only; then mount your own bundle (see rauc-container/)
+
+    restart: "no"          # one-shot: never restart. Use "unless-stopped" for MODE=server.
+
+    environment:
+      # --- mode ---
+      MODE: oneshot        # oneshot = flash once and exit | server = REST API
+
+      # --- one-shot mode (MODE=oneshot) ---
+      DRY_RUN: "true"      # "true" = verify service + signature, do NOT flash
+                           # "false" = install to the inactive slot
+      REBOOT: "false"      # "true" = reboot host via systemd after a successful flash
+                           #          (opt-in; off keeps the success log/exit status)
+
+      # --- server mode (MODE=server) ---
+      PORT: "8080"         # REST API listen port
+      ORDER_NUMBER: "0752-9xxx"    # reported at /wda/parameters/0-0-identity-ordernumber
+      FIRMWARE_VERSION: "04.01.00" # reported at /wda/parameters/0-0-version-firmwareversion
+
+      # --- both modes (rarely changed) ---
+      BUNDLE: /firmware/bundle.raucb   # embedded bundle path inside the image
+      KEYRING: /etc/rauc/keyring.pem   # keyring used to verify the bundle
+      STAGE_DIR: /docker/rauc-stage    # host-visible staging dir (must match the
+                                       # bind mount below, SAME path both sides)
+
+    # server mode only - publish the API port
+    ports:
+      - "8080:8080"
+
+    volumes:
+      # REQUIRED: host rauc.service socket - lets the container drive the host
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      # REQUIRED on a factory edge: keyring that trusts the bundle signature
+      - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+      # REQUIRED: host-visible staging dir - the host service reads the bundle
+      # here during install; MUST be the same path as STAGE_DIR above
+      - /docker/rauc-stage:/docker/rauc-stage
+      # OPTIONAL (only for the ":rauc" client image): mount a bundle from the
+      # device and point BUNDLE at it, instead of using the embedded one
+      # - /docker/edge-build/my.raucb:/firmware/bundle.raucb:ro
+```
+
+Run it:
+```bash
+# one-shot
+DRY_RUN=false docker compose run --rm edge-fwupdate
+# server (set MODE=server, restart=unless-stopped above)
+docker compose up -d
+```
+
 ## Layout
 
 ```
