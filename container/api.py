@@ -115,7 +115,19 @@ def rauc_info(path):
     return True, (ver.group(1) if ver else None), (comp.group(1) if comp else None), None
 
 
-def _install_worker(path):
+def _install_worker(path, stage_from=None):
+    # Runs in a background thread so `start` returns immediately. If stage_from is
+    # set (embedded bundle inside the image), copy it to the host-visible path
+    # FIRST - the copy is ~1.3 GB, must not block the HTTP request.
+    if stage_from:
+        logline(f"staging embedded bundle -> {path}")
+        try:
+            shutil.copyfile(stage_from, path)
+        except OSError as e:
+            with _lock:
+                st.update(status=7, errorcause=600, debuginfo=f"stage failed: {e}")
+            logline(f"stage FAILED: {e}")
+            return
     logline(f"rauc install {path}")
     proc = subprocess.Popen(["rauc", "install", path],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -178,20 +190,17 @@ def m_start(inargs):
             if ids[0] not in st["uploads"]:
                 return None, "1", "unknown upload id"
             path = st["uploads"][ids[0]]["path"]
-            embedded = False
+            stage_from = None
         else:                                            # no UploadFiles -> built-in bundle
             if not os.path.isfile(EMBEDDED):
                 return None, "1", "no embedded bundle and no UploadFiles given"
-            path = None
-            embedded = True
-    if embedded:
-        os.makedirs(STAGE_DIR, exist_ok=True)
-        path = os.path.join(STAGE_DIR, "embedded.raucb")
-        shutil.copyfile(EMBEDDED, path)
-    with _lock:
+            os.makedirs(STAGE_DIR, exist_ok=True)
+            path = os.path.join(STAGE_DIR, "embedded.raucb")
+            stage_from = EMBEDDED                         # copied in the worker, not here
         st.update(status=3, progress=0)                  # Started
-    threading.Thread(target=_install_worker, args=(path,), daemon=True).start()
-    logline(f"start {'embedded' if embedded else ids} -> Started")
+    threading.Thread(target=_install_worker, args=(path,),
+                     kwargs={"stage_from": stage_from}, daemon=True).start()
+    logline(f"start {'embedded' if stage_from else ids} -> Started")
     return {}, None, None
 
 
