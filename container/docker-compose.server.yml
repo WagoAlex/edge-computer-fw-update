@@ -1,28 +1,37 @@
-# REST API mode (MODE=server): the same self-contained edge updater, but as a
-# long-running service exposing a WDA-shaped firmware-update API. Additive to
-# docker-compose.yml (one-shot mode) - deploy whichever you want.
+# REST API mode (MODE=server): long-running WDA-compatible firmware-update API,
+# with the same auth posture as PFC/CC WDA - HTTPS + HTTP Basic auth (self-signed).
+# So wago-plc-mcp-server fw_update.py drives the edge unchanged:
+#   PLC_IP=192.168.2.17 PLC_USERNAME=admin PLC_PASSWORD=... (needs port 443 below)
 #
-#   POST /files                          -> upload a .raucb, verify, read metadata
-#   POST /update/start                   -> install staged (or embedded) bundle
-#   GET  /update/status                  -> status, progress, error, versions, slots
-#   GET  /wda/parameters/0-0-firmwareupdate-status|-progress|-errorcause
-#   GET  /wda/parameters/0-0-version-firmwareversion|0-0-identity-ordernumber
-#   GET  /health
+#   POST /wda/methods/0-0-firmwareupdate-<m>/runs   activate/getuploadids/start/
+#        finish/clear/cancel/settimeout/getlastlogentries
+#   PATCH /files/{id}                               chunked bundle upload
+#   GET  /wda/parameters/0-0-firmwareupdate-*       status/progress/errorcause/...
+#   GET  /health                                    auth-exempt liveness
 #
-# No auth - trusted LAN only. For real auth/TLS, front it with the wda-container
-# (lighttpd + authd) gate instead of exposing this port directly.
+# TLS cert is self-signed on first start; mount your own via TLS_CERT/TLS_KEY.
+# Set WDA_TLS=false / WDA_AUTH=false only for local debugging.
 services:
   edge-fwupdate-api:
     image: wagoalex/wago-fw-update-edge-computer:bundle-latest
     restart: unless-stopped
     environment:
       MODE: server
-      PORT: 8080
+      PORT: 8443
+      WDA_USER: ${WDA_USER:-admin}
+      WDA_PASSWORD: ${WDA_PASSWORD:?set WDA_PASSWORD}   # required
+      # WDA_TLS: "false"        # uncomment to serve plain HTTP (debug only)
+      # WDA_AUTH: "false"       # uncomment to disable Basic auth (debug only)
       ORDER_NUMBER: ${ORDER_NUMBER:-0752-9xxx}
       FIRMWARE_VERSION: ${FIRMWARE_VERSION:-04.01.00}
     ports:
-      - "8080:8080"
+      # Map to 443 so an unmodified WDA client (fw_update.py -> https://<ip>/wda)
+      # reaches it. Use "8443:8443" instead if you address it as https://<ip>:8443.
+      - "443:8443"
     volumes:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
       - /docker/rauc-stage:/docker/rauc-stage
+      # optional: mount your own TLS cert instead of the generated self-signed one
+      # - /etc/wda/cert.pem:/run/wda/cert.pem:ro
+      # - /etc/wda/key.pem:/run/wda/key.pem:ro

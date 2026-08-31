@@ -8,6 +8,16 @@ set -eu
 # endpoints). Anything else -> the one-shot install below. Both drive the same
 # host rauc.service; the API just adds a REST surface on top.
 if [ "${MODE:-oneshot}" = "server" ]; then
+  # HTTPS like PFC/CC WDA: self-signed cert if none mounted. Skipped if WDA_TLS=false.
+  if [ "${WDA_TLS:-true}" != "false" ] && [ "${WDA_TLS:-true}" != "0" ]; then
+    CERT="${TLS_CERT:-/run/wda/cert.pem}"; KEY="${TLS_KEY:-/run/wda/key.pem}"
+    if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
+      echo "==> generating self-signed WDA TLS cert"
+      mkdir -p "$(dirname "$CERT")" "$(dirname "$KEY")"
+      openssl req -x509 -newkey rsa:2048 -nodes -keyout "$KEY" -out "$CERT" \
+        -subj "/CN=wago-edge-wda" -days 3650 >/dev/null 2>&1
+    fi
+  fi
   exec python3 /api.py
 fi
 
