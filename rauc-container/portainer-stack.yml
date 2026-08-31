@@ -1,0 +1,20 @@
+# Portainer stack: full RAUC A/B firmware update on the edge.
+# Rolls the .raucb onto the INACTIVE slot via the host rauc.service; reboot activates it.
+#
+# Prereqs on the device (one time):
+#   - self-signed keyring registered in /etc/rauc/system.conf  ([keyring] path=/etc/rauc/keyring.pem)
+#   - the .raucb present at the mounted path below
+#
+# First roll out with DRY_RUN=true to confirm the service + bundle verify, then flip to false.
+services:
+  edge-fwupdate:
+    image: wagoalex/wago-fw-update-edge-computer:rauc
+    restart: "no"                       # a firmware update runs once, never auto-restart
+    environment:
+      BUNDLE: /firmware/WAGO_OS0752-9xxx_V040100_IX05_I.raucb
+      DRY_RUN: "true"                   # set "false" to actually flash
+    volumes:
+      # the host rauc.service socket - this is what lets the client drive the host
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      # directory on the device holding the .raucb bundle
+      - /docker/edge-build:/firmware:ro

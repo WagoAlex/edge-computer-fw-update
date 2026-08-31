@@ -1,0 +1,28 @@
+# REST API mode (MODE=server): the same self-contained edge updater, but as a
+# long-running service exposing a WDA-shaped firmware-update API. Additive to
+# docker-compose.yml (one-shot mode) - deploy whichever you want.
+#
+#   POST /files                          -> upload a .raucb, verify, read metadata
+#   POST /update/start                   -> install staged (or embedded) bundle
+#   GET  /update/status                  -> status, progress, error, versions, slots
+#   GET  /wda/parameters/0-0-firmwareupdate-status|-progress|-errorcause
+#   GET  /wda/parameters/0-0-version-firmwareversion|0-0-identity-ordernumber
+#   GET  /health
+#
+# No auth - trusted LAN only. For real auth/TLS, front it with the wda-container
+# (lighttpd + authd) gate instead of exposing this port directly.
+services:
+  edge-fwupdate-api:
+    image: wagoalex/wago-fw-update-edge-computer:bundle-latest
+    restart: unless-stopped
+    environment:
+      MODE: server
+      PORT: 8080
+      ORDER_NUMBER: ${ORDER_NUMBER:-0752-9xxx}
+      FIRMWARE_VERSION: ${FIRMWARE_VERSION:-04.01.00}
+    ports:
+      - "8080:8080"
+    volumes:
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+      - /docker/rauc-stage:/docker/rauc-stage

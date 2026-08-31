@@ -1,0 +1,25 @@
+# Self-contained edge firmware update. The .raucb is inside the image, so this
+# updates ANY of our edges with the current bundle - nothing to stage by hand.
+# Installs to the INACTIVE A/B slot via the host rauc.service; reboot activates it.
+#
+# Deploy (Portainer stack or `docker compose run --rm`):
+#   DRY_RUN=true  -> verify service reachable + bundle signature, no flash
+#   DRY_RUN=false -> flash the inactive slot, then reboot the device
+#
+# Device prereq: /etc/rauc/keyring.pem must trust the bundle's self-signed line.
+# Edges flashed from our .wup already have it; a factory edge needs the one-time
+# keyring setup first.
+services:
+  edge-fwupdate:
+    image: wagoalex/wago-fw-update-edge-computer:bundle-latest
+    restart: "no"
+    environment:
+      DRY_RUN: ${DRY_RUN:-true}
+    volumes:
+      # 1) host rauc.service socket - lets the client drive the host
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      # 2) host keyring (read-only) - for local signature verify
+      - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+      # 3) host-visible staging dir (SAME path both sides) - the host service
+      #    reads the bundle from here during install
+      - /docker/rauc-stage:/docker/rauc-stage
