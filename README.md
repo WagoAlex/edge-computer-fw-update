@@ -189,6 +189,17 @@ errorcause enums), so the wago-plc-mcp-server `fw_update.py` sequence works
 against it: `activate -> getuploadids -> PATCH /files/{id} -> start -> poll
 status/progress -> finish -> clear`.
 
+WDA methods, `POST /wda/methods/<id>/runs?result-behavior=sync`: `activate`,
+`getuploadids`, `start`, `finish`, `clear`, `cancel`, `settimeout`,
+`getlastlogentries`. Success -> `{"data":{"attributes":{"outArgs":{…},
+"executionStatus":"done"}}}`; a precondition failure -> the WDA error envelope
+(`code:"26"`, `domainSpecificStatusCode` 95=not-activated / 90=already-active).
+Status params: `0-0-firmwareupdate-status` (enum 0-9), `-progress` (0-100),
+`-errorcause` (numbered), `-debuginfo`, `-revertable`; identity
+`0-0-version-firmwareversion`, `0-0-identity-ordernumber`; enum definitions at
+`/wda/parameter-definitions/<id>/enum`. Service root `GET /wda` returns a
+`devices` document with `meta.version`.
+
 Direct calls:
 ```bash
 IP=192.168.2.17

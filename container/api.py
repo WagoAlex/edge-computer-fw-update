@@ -65,7 +65,7 @@ DSC_ALREADY_ACTIVE = "90"
 
 _lock = threading.Lock()
 st = {"status": 0, "progress": 0, "errorcause": 0, "debuginfo": "",
-      "revertable": True, "uploads": {}, "staged": None}
+      "revertable": True, "uploads": {}, "staged": None, "confirm_timeout": None}
 _log = []  # ring of recent log lines
 
 
@@ -202,6 +202,15 @@ def m_getlastlogentries(inargs):
     return {"Entries": {"value": entries}}, None, None
 
 
+def m_settimeout(inargs):
+    # WDA sets the confirmation timeout (seconds) before the update auto-reverts.
+    to = inargs.get("Timeout", {}).get("value")
+    with _lock:
+        st["confirm_timeout"] = to
+    logline(f"settimeout -> {to}")
+    return {}, None, None
+
+
 METHODS = {
     "0-0-firmwareupdate-activate": m_activate,
     "0-0-firmwareupdate-getuploadids": m_getuploadids,
@@ -209,6 +218,7 @@ METHODS = {
     "0-0-firmwareupdate-finish": m_finish,
     "0-0-firmwareupdate-clear": m_clear,
     "0-0-firmwareupdate-cancel": m_cancel,
+    "0-0-firmwareupdate-settimeout": m_settimeout,
     "0-0-firmwareupdate-getlastlogentries": m_getlastlogentries,
 }
 
@@ -270,9 +280,12 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0].rstrip("/")
         if path in ("/wda", ""):
-            return self._send(200, {"data": {"type": "service",
-                                    "attributes": {"name": "WAGO Edge WDA (rauc)",
-                                                   "version": "1.5.2-compat"}}})
+            # WDA service root: JSON:API document with a meta.version, as a real
+            # PFC/TP600 serves (WDA 1.5.2). "-compat" flags the rauc-backed re-impl.
+            return self._send(200, {"data": {"id": "0-0", "type": "devices",
+                                    "attributes": {"orderNumber": ORDER,
+                                                   "firmwareVersion": FW_VERSION}},
+                                    "meta": {"version": "1.5.2-compat"}})
         if path == "/health":
             return self._send(200, {"status": "ok"}, "application/json")
         if path.startswith("/wda/parameters/"):
