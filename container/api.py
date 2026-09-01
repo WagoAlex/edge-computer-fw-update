@@ -14,9 +14,17 @@ there. Parameter IDs come from the FW31 cassette
   GET   /wda                                  service root
   GET   /wda/parameters/<id>                  see providers/ for the ID map
   GET   /wda/parameter-definitions/<id>/enum  enum members where WDA has them
-  POST  /wda/methods/<id>/runs?result-behavior=sync
+  POST  /wda/methods/<id>/runs?result-behavior=sync    -> 201, as the spec says
   PATCH /files/{id}                           chunked bundle upload
+  GET   /openapi/wda.openapi.json             what this build actually implements
   GET   /health                               auth-exempt liveness
+
+Response envelopes follow WAGO's own OpenAPI 3.1 document (WDA 1.5.2, served by
+every real device at /openapi/wda.openapi.json and diffed against a live CC100 on
+2026-09-01): attributes carry dataType/dataRank/path beside the value, resources
+carry links/relationships, documents carry jsonapi and meta. This is a strict
+subset of the 40-path spec - discovery collections are not implemented - so the
+spec we serve describes only these paths and says so.
 
 Everything served today is read-only apart from the firmware-update state
 machine; writable `custom*`/`static*` parameters are Phase 3.
@@ -33,9 +41,13 @@ import ssl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import providers
+import openapi
+from providers import meta
 from providers import firmwareupdate as fw
 
 JSONAPI = "application/vnd.api+json"
+WDA_VERSION = "1.5.2-compat"
+JSONAPI_VERSION = "1.0"
 
 ORDER = os.environ.get("ORDER_NUMBER", "0752-9xxx")
 FW_VERSION = os.environ.get("FIRMWARE_VERSION", "04.01.00")
@@ -100,12 +112,26 @@ class H(BaseHTTPRequestHandler):
     def _404(self, detail):
         self._send(404, {"errors": [{"status": "404", "detail": detail}]})
 
+    def _doc(self, data, self_link):
+        """Wrap a resource as a JSON:API document the way a real WDA does."""
+        return {"data": data, "jsonapi": {"version": JSONAPI_VERSION},
+                "links": {"self": self_link},
+                "meta": {"version": WDA_VERSION,
+                         "doc": "/openapi/wda.openapi.json"}}
+
     def _param(self, pid):
         v = providers.param_value(pid)
         if v is None:
             return self._404(pid)
-        self._send(200, {"data": {"id": pid, "type": "parameters",
-                                  "attributes": {"value": v}}})
+        link = f"/wda/parameters/{pid}"
+        attrs = meta.describe(pid, v)
+        attrs["value"] = v
+        self._send(200, self._doc({
+            "id": pid, "type": "parameters", "attributes": attrs,
+            "links": {"self": link},
+            "relationships": {
+                "definition": {"links": {"related": f"{link}/definition"}},
+                "device": {"links": {"related": f"{link}/device"}}}}, link))
 
     def _authed(self):
         """Enforce Basic auth on everything except /health (auth-exempt, like the
@@ -125,12 +151,19 @@ class H(BaseHTTPRequestHandler):
             return
         path = self.path.split("?", 1)[0].rstrip("/")
         if path in ("/wda", ""):
-            # WDA service root: JSON:API document with a meta.version, as a real
-            # PFC/TP600 serves (WDA 1.5.2). "-compat" flags the rauc-backed re-impl.
-            return self._send(200, {"data": {"id": "0-0", "type": "devices",
-                                    "attributes": {"orderNumber": ORDER,
-                                                   "firmwareVersion": FW_VERSION}},
-                                    "meta": {"version": "1.5.2-compat"}})
+            # WDA service root. "-compat" in meta.version flags the rauc-backed
+            # re-implementation - a client must not mistake this for real WDA.
+            return self._send(200, self._doc(
+                {"id": "0-0", "type": "devices",
+                 "attributes": {"orderNumber": ORDER, "firmwareVersion": FW_VERSION},
+                 "links": {"self": "/wda"}}, "/wda"))
+        if path == "/openapi/wda.openapi.json":
+            # Generated from the provider registry, so the spec cannot drift from
+            # the code. Auth-gated: a real device serves this anonymously, we do
+            # not - there is no client compatibility reason to hand the shape of
+            # the API to an unauthenticated caller.
+            return self._send(200, openapi.document(ORDER, FW_VERSION, WDA_VERSION),
+                              "application/json")
         if path == "/health":
             return self._send(200, {"status": "ok"}, "application/json")
         if path.startswith("/wda/parameters/"):
@@ -140,8 +173,12 @@ class H(BaseHTTPRequestHandler):
             table = providers.ENUMS.get(pid)
             if table is None:
                 return self._404(pid)
-            return self._send(200, {"data": {"id": pid, "type": "parameter-definitions",
-                "attributes": {"enum": [{"value": k, "name": v} for k, v in table.items()]}}})
+            link = f"/wda/parameter-definitions/{pid}/enum"
+            return self._send(200, self._doc(
+                {"id": pid, "type": "parameter-definitions",
+                 "attributes": {"enum": [{"value": k, "name": v}
+                                         for k, v in table.items()]},
+                 "links": {"self": link}}, link))
         self._404(self.path)
 
     def do_POST(self):
@@ -162,13 +199,16 @@ class H(BaseHTTPRequestHandler):
         except (ValueError, AttributeError):
             inargs = {}
         outargs, dsc, detail = fn(inargs)
+        link = f"/wda/methods/{mid}/runs"
+        # 201, per the spec - a run is a created resource. fw_update.py ignores
+        # the code and reads the body, so this is safe for the proven client.
         if dsc is not None:  # WDA method-error envelope
-            return self._send(200, {"data": {"type": "runs", "attributes": {
+            return self._send(201, self._doc({"type": "runs", "attributes": {
                 "code": "26", "domainSpecificStatusCode": dsc,
                 "detail": detail or "method could not be invoked",
-                "executionStatus": "error"}}})
-        self._send(200, {"data": {"type": "runs", "attributes": {
-            "outArgs": outargs or {}, "executionStatus": "done"}}})
+                "executionStatus": "error"}}, link))
+        self._send(201, self._doc({"type": "runs", "attributes": {
+            "outArgs": outargs or {}, "executionStatus": "done"}}, link))
 
     def do_PATCH(self):
         if not self._authed():

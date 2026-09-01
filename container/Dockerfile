@@ -6,7 +6,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends rauc dbus python3 openssl iproute2 \
  && rm -rf /var/lib/apt/lists/*
 COPY entrypoint.sh /entrypoint.sh
-COPY api.py presets.py /
+COPY api.py openapi.py presets.py /
 COPY providers/ /providers/
 COPY presets/ /presets/
 RUN chmod +x /entrypoint.sh

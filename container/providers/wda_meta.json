@@ -1,0 +1,1976 @@
+{
+"_source": "edge-fw31-parameters-raw.json (wago-plc-mcp-server), WDA 1.5.2 / FW31",
+"_note": "Generated, do not hand-edit. Regenerate from the cassette.",
+"parameters": {
+"0-0-aide-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "AIDE/Enabled"
+},
+"0-0-aide-isrunning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "AIDE/IsRunning"
+},
+"0-0-bacnet-datalinks": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks"
+},
+"0-0-bacnet-datalinks-1-communicationmode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/CommunicationMode"
+},
+"0-0-bacnet-datalinks-1-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/Enabled"
+},
+"0-0-bacnet-datalinks-1-interface": {
+"dataType": "instance_identity_ref",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/Interface"
+},
+"0-0-bacnet-datalinks-1-networknumber": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/NetworkNumber"
+},
+"0-0-bacnet-datalinks-1-port": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/Port"
+},
+"0-0-bacnet-datalinks-1-sc-allowanycertificates": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/AllowAnyCertificates"
+},
+"0-0-bacnet-datalinks-1-sc-allowexpiredcertificates": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/AllowExpiredCertificates"
+},
+"0-0-bacnet-datalinks-1-sc-allowselfsignedcertificates": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/AllowSelfSignedCertificates"
+},
+"0-0-bacnet-datalinks-1-sc-certificateauthorityfile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/CertificateAuthorityFile"
+},
+"0-0-bacnet-datalinks-1-sc-certificateauthorityfiledescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/CertificateAuthorityFileDescription"
+},
+"0-0-bacnet-datalinks-1-sc-certificatefile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/CertificateFile"
+},
+"0-0-bacnet-datalinks-1-sc-certificatefiledescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/CertificateFileDescription"
+},
+"0-0-bacnet-datalinks-1-sc-connectioninfo": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/ConnectionInfo"
+},
+"0-0-bacnet-datalinks-1-sc-csrfile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/CSRFile"
+},
+"0-0-bacnet-datalinks-1-sc-failoverhuburi": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/FailoverHubURI"
+},
+"0-0-bacnet-datalinks-1-sc-mode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/Mode"
+},
+"0-0-bacnet-datalinks-1-sc-primaryhuburi": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/1/SC/PrimaryHubURI"
+},
+"0-0-bacnet-datalinks-2-communicationmode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/CommunicationMode"
+},
+"0-0-bacnet-datalinks-2-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/Enabled"
+},
+"0-0-bacnet-datalinks-2-interface": {
+"dataType": "instance_identity_ref",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/Interface"
+},
+"0-0-bacnet-datalinks-2-networknumber": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/NetworkNumber"
+},
+"0-0-bacnet-datalinks-2-port": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/Port"
+},
+"0-0-bacnet-datalinks-2-sc-allowanycertificates": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/AllowAnyCertificates"
+},
+"0-0-bacnet-datalinks-2-sc-allowexpiredcertificates": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/AllowExpiredCertificates"
+},
+"0-0-bacnet-datalinks-2-sc-allowselfsignedcertificates": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/AllowSelfSignedCertificates"
+},
+"0-0-bacnet-datalinks-2-sc-certificateauthorityfile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/CertificateAuthorityFile"
+},
+"0-0-bacnet-datalinks-2-sc-certificateauthorityfiledescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/CertificateAuthorityFileDescription"
+},
+"0-0-bacnet-datalinks-2-sc-certificatefile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/CertificateFile"
+},
+"0-0-bacnet-datalinks-2-sc-certificatefiledescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/CertificateFileDescription"
+},
+"0-0-bacnet-datalinks-2-sc-connectioninfo": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/ConnectionInfo"
+},
+"0-0-bacnet-datalinks-2-sc-csrfile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/CSRFile"
+},
+"0-0-bacnet-datalinks-2-sc-failoverhuburi": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/FailoverHubURI"
+},
+"0-0-bacnet-datalinks-2-sc-mode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/Mode"
+},
+"0-0-bacnet-datalinks-2-sc-primaryhuburi": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/Datalinks/2/SC/PrimaryHubURI"
+},
+"0-0-bacnet-general-broadcastiamanswer": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/General/BroadcastIAmAnswer"
+},
+"0-0-bacnet-general-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/General/Enabled"
+},
+"0-0-bacnet-general-overridexml": {
+"dataType": "file_id",
+"dataRank": "scalar",
+"path": "BACnet/General/OverrideXML"
+},
+"0-0-bacnet-general-overridexmldescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "BACnet/General/OverrideXMLDescription"
+},
+"0-0-bacnet-general-status": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "BACnet/General/Status"
+},
+"0-0-bacnet-general-storagelocation-eventlog": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "BACnet/General/StorageLocation/Eventlog"
+},
+"0-0-bacnet-general-storagelocation-persistence": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "BACnet/General/StorageLocation/Persistence"
+},
+"0-0-bacnet-general-storagelocation-trendlog": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "BACnet/General/StorageLocation/Trendlog"
+},
+"0-0-bacnet-hotreload-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "BACnet/HotReload/Enabled"
+},
+"0-0-cloudconnections": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "CloudConnections"
+},
+"0-0-cloudconnections-1-cloudtype": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/CloudType"
+},
+"0-0-cloudconnections-1-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Enabled"
+},
+"0-0-cloudconnections-1-identification-clientid": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Identification/ClientId"
+},
+"0-0-cloudconnections-1-messaging-cachemode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Messaging/CacheMode"
+},
+"0-0-cloudconnections-1-messaging-compression": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Messaging/Compression"
+},
+"0-0-cloudconnections-1-messaging-messagingprotocol": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Messaging/MessagingProtocol"
+},
+"0-0-cloudconnections-1-messaging-wagoprotocol-messageproperty": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Messaging/WagoProtocol/MessageProperty"
+},
+"0-0-cloudconnections-1-messaging-wagoprotocol-senddeviceinfo": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Messaging/WagoProtocol/SendDeviceInfo"
+},
+"0-0-cloudconnections-1-messaging-wagoprotocol-senddevicestatus": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Messaging/WagoProtocol/SendDeviceStatus"
+},
+"0-0-cloudconnections-1-messaging-wagoprotocol-standardcommandsenabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Messaging/WagoProtocol/StandardCommandsEnabled"
+},
+"0-0-cloudconnections-1-status-connected": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/Connected"
+},
+"0-0-cloudconnections-1-status-dataprotocollive": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/DataProtocolLive"
+},
+"0-0-cloudconnections-1-status-errorinformation": {
+"dataType": "string",
+"dataRank": "array",
+"path": "CloudConnections/1/Status/ErrorInformation"
+},
+"0-0-cloudconnections-1-status-filllevel": {
+"dataType": "float32",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/FillLevel"
+},
+"0-0-cloudconnections-1-status-isactive": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/IsActive"
+},
+"0-0-cloudconnections-1-status-nativemqtt-countofmessages": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/NativeMQTT/CountOfMessages"
+},
+"0-0-cloudconnections-1-status-outgoingdatablocks": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/OutgoingDataBlocks"
+},
+"0-0-cloudconnections-1-status-wagoprotocol-collectionscountfromplc": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/WagoProtocol/CollectionsCountFromPLC"
+},
+"0-0-cloudconnections-1-status-wagoprotocol-telemetrydatatransmission": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/WagoProtocol/TelemetryDataTransmission"
+},
+"0-0-cloudconnections-1-status-wagoprotocol-wagoprotocolversion": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Status/WagoProtocol/WagoProtocolVersion"
+},
+"0-0-cloudconnections-1-status-warninginformation": {
+"dataType": "string",
+"dataRank": "array",
+"path": "CloudConnections/1/Status/WarningInformation"
+},
+"0-0-cloudconnections-1-transport-authentication-authenticationmethod": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/AuthenticationMethod"
+},
+"0-0-cloudconnections-1-transport-authentication-cacertificate": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/CaCertificate"
+},
+"0-0-cloudconnections-1-transport-authentication-cacertificatedescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/CaCertificateDescription"
+},
+"0-0-cloudconnections-1-transport-authentication-cacertificatemode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/CaCertificateMode"
+},
+"0-0-cloudconnections-1-transport-authentication-clientcertificate": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/ClientCertificate"
+},
+"0-0-cloudconnections-1-transport-authentication-clientcertificatedescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/ClientCertificateDescription"
+},
+"0-0-cloudconnections-1-transport-authentication-devicekey": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/DeviceKey"
+},
+"0-0-cloudconnections-1-transport-authentication-idscope": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/IdScope"
+},
+"0-0-cloudconnections-1-transport-authentication-password": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/Password"
+},
+"0-0-cloudconnections-1-transport-authentication-privatekey": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/PrivateKey"
+},
+"0-0-cloudconnections-1-transport-authentication-privatekeydescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/PrivateKeyDescription"
+},
+"0-0-cloudconnections-1-transport-authentication-registrationid": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/RegistrationId"
+},
+"0-0-cloudconnections-1-transport-authentication-user": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Authentication/User"
+},
+"0-0-cloudconnections-1-transport-host": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Host"
+},
+"0-0-cloudconnections-1-transport-httpproxy-host": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/HttpProxy/Host"
+},
+"0-0-cloudconnections-1-transport-httpproxy-password": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/HttpProxy/Password"
+},
+"0-0-cloudconnections-1-transport-httpproxy-port": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/HttpProxy/Port"
+},
+"0-0-cloudconnections-1-transport-httpproxy-user": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/HttpProxy/User"
+},
+"0-0-cloudconnections-1-transport-mqtt-cleansession": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/MQTT/CleanSession"
+},
+"0-0-cloudconnections-1-transport-mqtt-lastwill-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/MQTT/LastWill/Enabled"
+},
+"0-0-cloudconnections-1-transport-mqtt-lastwill-payload": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/MQTT/LastWill/Payload"
+},
+"0-0-cloudconnections-1-transport-mqtt-lastwill-qos": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/MQTT/LastWill/QoS"
+},
+"0-0-cloudconnections-1-transport-mqtt-lastwill-retain": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/MQTT/LastWill/Retain"
+},
+"0-0-cloudconnections-1-transport-mqtt-lastwill-topic": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/MQTT/LastWill/Topic"
+},
+"0-0-cloudconnections-1-transport-port": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/Port"
+},
+"0-0-cloudconnections-1-transport-proxytype": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/ProxyType"
+},
+"0-0-cloudconnections-1-transport-transportprotocol": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/TransportProtocol"
+},
+"0-0-cloudconnections-1-transport-usetls": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/1/Transport/UseTLS"
+},
+"0-0-cloudconnections-2-cloudtype": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/CloudType"
+},
+"0-0-cloudconnections-2-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Enabled"
+},
+"0-0-cloudconnections-2-identification-clientid": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Identification/ClientId"
+},
+"0-0-cloudconnections-2-messaging-cachemode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Messaging/CacheMode"
+},
+"0-0-cloudconnections-2-messaging-compression": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Messaging/Compression"
+},
+"0-0-cloudconnections-2-messaging-messagingprotocol": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Messaging/MessagingProtocol"
+},
+"0-0-cloudconnections-2-messaging-wagoprotocol-messageproperty": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Messaging/WagoProtocol/MessageProperty"
+},
+"0-0-cloudconnections-2-messaging-wagoprotocol-senddeviceinfo": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Messaging/WagoProtocol/SendDeviceInfo"
+},
+"0-0-cloudconnections-2-messaging-wagoprotocol-senddevicestatus": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Messaging/WagoProtocol/SendDeviceStatus"
+},
+"0-0-cloudconnections-2-messaging-wagoprotocol-standardcommandsenabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Messaging/WagoProtocol/StandardCommandsEnabled"
+},
+"0-0-cloudconnections-2-status-connected": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/Connected"
+},
+"0-0-cloudconnections-2-status-dataprotocollive": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/DataProtocolLive"
+},
+"0-0-cloudconnections-2-status-errorinformation": {
+"dataType": "string",
+"dataRank": "array",
+"path": "CloudConnections/2/Status/ErrorInformation"
+},
+"0-0-cloudconnections-2-status-filllevel": {
+"dataType": "float32",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/FillLevel"
+},
+"0-0-cloudconnections-2-status-isactive": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/IsActive"
+},
+"0-0-cloudconnections-2-status-nativemqtt-countofmessages": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/NativeMQTT/CountOfMessages"
+},
+"0-0-cloudconnections-2-status-outgoingdatablocks": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/OutgoingDataBlocks"
+},
+"0-0-cloudconnections-2-status-wagoprotocol-collectionscountfromplc": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/WagoProtocol/CollectionsCountFromPLC"
+},
+"0-0-cloudconnections-2-status-wagoprotocol-telemetrydatatransmission": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/WagoProtocol/TelemetryDataTransmission"
+},
+"0-0-cloudconnections-2-status-wagoprotocol-wagoprotocolversion": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Status/WagoProtocol/WagoProtocolVersion"
+},
+"0-0-cloudconnections-2-status-warninginformation": {
+"dataType": "string",
+"dataRank": "array",
+"path": "CloudConnections/2/Status/WarningInformation"
+},
+"0-0-cloudconnections-2-transport-authentication-authenticationmethod": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/AuthenticationMethod"
+},
+"0-0-cloudconnections-2-transport-authentication-cacertificate": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/CaCertificate"
+},
+"0-0-cloudconnections-2-transport-authentication-cacertificatedescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/CaCertificateDescription"
+},
+"0-0-cloudconnections-2-transport-authentication-cacertificatemode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/CaCertificateMode"
+},
+"0-0-cloudconnections-2-transport-authentication-clientcertificate": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/ClientCertificate"
+},
+"0-0-cloudconnections-2-transport-authentication-clientcertificatedescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/ClientCertificateDescription"
+},
+"0-0-cloudconnections-2-transport-authentication-devicekey": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/DeviceKey"
+},
+"0-0-cloudconnections-2-transport-authentication-idscope": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/IdScope"
+},
+"0-0-cloudconnections-2-transport-authentication-password": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/Password"
+},
+"0-0-cloudconnections-2-transport-authentication-privatekey": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/PrivateKey"
+},
+"0-0-cloudconnections-2-transport-authentication-privatekeydescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/PrivateKeyDescription"
+},
+"0-0-cloudconnections-2-transport-authentication-registrationid": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/RegistrationId"
+},
+"0-0-cloudconnections-2-transport-authentication-user": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Authentication/User"
+},
+"0-0-cloudconnections-2-transport-host": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Host"
+},
+"0-0-cloudconnections-2-transport-httpproxy-host": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/HttpProxy/Host"
+},
+"0-0-cloudconnections-2-transport-httpproxy-password": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/HttpProxy/Password"
+},
+"0-0-cloudconnections-2-transport-httpproxy-port": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/HttpProxy/Port"
+},
+"0-0-cloudconnections-2-transport-httpproxy-user": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/HttpProxy/User"
+},
+"0-0-cloudconnections-2-transport-mqtt-cleansession": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/MQTT/CleanSession"
+},
+"0-0-cloudconnections-2-transport-mqtt-lastwill-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/MQTT/LastWill/Enabled"
+},
+"0-0-cloudconnections-2-transport-mqtt-lastwill-payload": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/MQTT/LastWill/Payload"
+},
+"0-0-cloudconnections-2-transport-mqtt-lastwill-qos": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/MQTT/LastWill/QoS"
+},
+"0-0-cloudconnections-2-transport-mqtt-lastwill-retain": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/MQTT/LastWill/Retain"
+},
+"0-0-cloudconnections-2-transport-mqtt-lastwill-topic": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/MQTT/LastWill/Topic"
+},
+"0-0-cloudconnections-2-transport-port": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/Port"
+},
+"0-0-cloudconnections-2-transport-proxytype": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/ProxyType"
+},
+"0-0-cloudconnections-2-transport-transportprotocol": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/TransportProtocol"
+},
+"0-0-cloudconnections-2-transport-usetls": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "CloudConnections/2/Transport/UseTLS"
+},
+"0-0-codesys3-applications": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Codesys3/Applications"
+},
+"0-0-codesys3-deviceversion": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Codesys3/DeviceVersion"
+},
+"0-0-codesys3-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Codesys3/Enabled"
+},
+"0-0-codesys3-homedirectory": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Codesys3/HomeDirectory"
+},
+"0-0-codesys3-userauthentication-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Codesys3/UserAuthentication/Enabled"
+},
+"0-0-codesys3-webserver-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Codesys3/Webserver/Enabled"
+},
+"0-0-codesys3-webserver-userauthentication-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Codesys3/Webserver/UserAuthentication/Enabled"
+},
+"0-0-customfonts-backup": {
+"dataType": "file_id",
+"dataRank": "scalar",
+"path": "CustomFonts/Backup"
+},
+"0-0-customfonts-installed": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "CustomFonts/Installed"
+},
+"0-0-display-orientation": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Display/Orientation"
+},
+"0-0-display-resolution": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Display/Resolution"
+},
+"0-0-display-screencare-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Display/ScreenCare/Enabled"
+},
+"0-0-display-screencare-time": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Display/ScreenCare/Time"
+},
+"0-0-display-screensaver-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Display/Screensaver/Enabled"
+},
+"0-0-display-screensaver-idletime": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "Display/Screensaver/IdleTime"
+},
+"0-0-display-screensaver-setting": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Display/Screensaver/Setting"
+},
+"0-0-display-screensaver-text": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Display/Screensaver/Text"
+},
+"0-0-docker-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Docker/Enabled"
+},
+"0-0-docker-isrunning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Docker/IsRunning"
+},
+"0-0-drm-deviceid": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "DRM/DeviceID"
+},
+"0-0-drm-evaluationtime": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "DRM/EvaluationTime"
+},
+"0-0-drm-license-encrypted-device": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "DRM/License/Encrypted/Device"
+},
+"0-0-drm-license-shortened": {
+"dataType": "string",
+"dataRank": "array",
+"path": "DRM/License/Shortened"
+},
+"0-0-drm-maximumlicenses": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "DRM/MaximumLicenses"
+},
+"0-0-drm-status": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "DRM/Status"
+},
+"0-0-firmwareimage-bootmedium": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "FirmwareImage/BootMedium"
+},
+"0-0-firmwareupdate-debuginfo": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "FirmwareUpdate/DebugInfo"
+},
+"0-0-firmwareupdate-errorcause": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "FirmwareUpdate/ErrorCause"
+},
+"0-0-firmwareupdate-progress": {
+"dataType": "uint8",
+"dataRank": "scalar",
+"path": "FirmwareUpdate/Progress"
+},
+"0-0-firmwareupdate-revertable": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "FirmwareUpdate/Revertable"
+},
+"0-0-firmwareupdate-status": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "FirmwareUpdate/Status"
+},
+"0-0-frontled-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "FrontLed/Enabled"
+},
+"0-0-ftp-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "FTP/Enabled"
+},
+"0-0-ftp-isrunning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "FTP/IsRunning"
+},
+"0-0-ftps-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "FTPS/Enabled"
+},
+"0-0-ftps-isrunning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "FTPS/IsRunning"
+},
+"0-0-identity-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Identity/Description"
+},
+"0-0-identity-ordernumber": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Identity/OrderNumber"
+},
+"0-0-identity-serialnumber": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Identity/SerialNumber"
+},
+"0-0-integratedwebbrowser-favorites": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "IntegratedWebBrowser/Favorites"
+},
+"0-0-integratedwebbrowser-monitoring-reconnect": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "IntegratedWebBrowser/Monitoring/Reconnect"
+},
+"0-0-integratedwebbrowser-monitoring-reconnectinterval": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "IntegratedWebBrowser/Monitoring/ReconnectInterval"
+},
+"0-0-integratedwebbrowser-security-allowunverifiedcertificates": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "IntegratedWebBrowser/Security/AllowUnverifiedCertificates"
+},
+"0-0-integratedwebbrowser-startpage": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "IntegratedWebBrowser/StartPage"
+},
+"0-0-integratedwebbrowser-startpagefavorite": {
+"dataType": "instance_ref",
+"dataRank": "scalar",
+"path": "IntegratedWebBrowser/StartPageFavorite"
+},
+"0-0-ipsec-certificate": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "IPsec/Certificate"
+},
+"0-0-ipsec-certificatedescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "IPsec/CertificateDescription"
+},
+"0-0-ipsec-configfile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "IPsec/ConfigFile"
+},
+"0-0-ipsec-configurationdescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "IPsec/ConfigurationDescription"
+},
+"0-0-ipsec-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "IPsec/Enabled"
+},
+"0-0-ipsec-isrunning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "IPsec/IsRunning"
+},
+"0-0-ipsec-privatekey": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "IPsec/PrivateKey"
+},
+"0-0-ipsec-secretsfile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "IPsec/SecretsFile"
+},
+"0-0-ledstates": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "LEDStates"
+},
+"0-0-ledstates-1-colors": {
+"dataType": "enum_member",
+"dataRank": "array",
+"path": "LEDStates/1/Colors"
+},
+"0-0-ledstates-1-diagnosticinformation": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/1/DiagnosticInformation"
+},
+"0-0-ledstates-1-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/1/Name"
+},
+"0-0-ledstates-2-colors": {
+"dataType": "enum_member",
+"dataRank": "array",
+"path": "LEDStates/2/Colors"
+},
+"0-0-ledstates-2-diagnosticinformation": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/2/DiagnosticInformation"
+},
+"0-0-ledstates-2-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/2/Name"
+},
+"0-0-ledstates-3-colors": {
+"dataType": "enum_member",
+"dataRank": "array",
+"path": "LEDStates/3/Colors"
+},
+"0-0-ledstates-3-diagnosticinformation": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/3/DiagnosticInformation"
+},
+"0-0-ledstates-3-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/3/Name"
+},
+"0-0-ledstates-4-colors": {
+"dataType": "enum_member",
+"dataRank": "array",
+"path": "LEDStates/4/Colors"
+},
+"0-0-ledstates-4-diagnosticinformation": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/4/DiagnosticInformation"
+},
+"0-0-ledstates-4-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/4/Name"
+},
+"0-0-ledstates-5-colors": {
+"dataType": "enum_member",
+"dataRank": "array",
+"path": "LEDStates/5/Colors"
+},
+"0-0-ledstates-5-diagnosticinformation": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/5/DiagnosticInformation"
+},
+"0-0-ledstates-5-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LEDStates/5/Name"
+},
+"0-0-localusers": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "LocalUsers"
+},
+"0-0-localusers-1-ispasswordexpired": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "LocalUsers/1/IsPasswordExpired"
+},
+"0-0-localusers-1-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LocalUsers/1/Name"
+},
+"0-0-localusers-1001-ispasswordexpired": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "LocalUsers/1001/IsPasswordExpired"
+},
+"0-0-localusers-1001-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LocalUsers/1001/Name"
+},
+"0-0-localusers-1003-ispasswordexpired": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "LocalUsers/1003/IsPasswordExpired"
+},
+"0-0-localusers-1003-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LocalUsers/1003/Name"
+},
+"0-0-localusers-13-ispasswordexpired": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "LocalUsers/13/IsPasswordExpired"
+},
+"0-0-localusers-13-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "LocalUsers/13/Name"
+},
+"0-0-memorycard-isavailable": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "MemoryCard/IsAvailable"
+},
+"0-0-memorycard-iswriteprotected": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "MemoryCard/IsWriteProtected"
+},
+"0-0-memorycard-volumename": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "MemoryCard/VolumeName"
+},
+"0-0-networking-bridges": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/Bridges"
+},
+"0-0-networking-bridges-1-connectedethernetports": {
+"dataType": "instance_ref",
+"dataRank": "array",
+"path": "Networking/Bridges/1/ConnectedEthernetPorts"
+},
+"0-0-networking-bridges-1-ipconfiguration-addresses": {
+"dataType": "string",
+"dataRank": "array",
+"path": "Networking/Bridges/1/IPConfiguration/Addresses"
+},
+"0-0-networking-bridges-1-ipconfiguration-currentaddresses": {
+"dataType": "string",
+"dataRank": "array",
+"path": "Networking/Bridges/1/IPConfiguration/CurrentAddresses"
+},
+"0-0-networking-bridges-1-ipconfiguration-currentdefaultgateway": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/1/IPConfiguration/CurrentDefaultGateway"
+},
+"0-0-networking-bridges-1-ipconfiguration-sources": {
+"dataType": "enum_member",
+"dataRank": "array",
+"path": "Networking/Bridges/1/IPConfiguration/Sources"
+},
+"0-0-networking-bridges-1-ipconfiguration-staticdefaultgateway": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/1/IPConfiguration/StaticDefaultGateway"
+},
+"0-0-networking-bridges-1-label": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/1/Label"
+},
+"0-0-networking-bridges-1-macaddress": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/1/MacAddress"
+},
+"0-0-networking-bridges-1-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/1/Name"
+},
+"0-0-networking-bridges-2-connectedethernetports": {
+"dataType": "instance_ref",
+"dataRank": "array",
+"path": "Networking/Bridges/2/ConnectedEthernetPorts"
+},
+"0-0-networking-bridges-2-ipconfiguration-addresses": {
+"dataType": "string",
+"dataRank": "array",
+"path": "Networking/Bridges/2/IPConfiguration/Addresses"
+},
+"0-0-networking-bridges-2-ipconfiguration-currentaddresses": {
+"dataType": "string",
+"dataRank": "array",
+"path": "Networking/Bridges/2/IPConfiguration/CurrentAddresses"
+},
+"0-0-networking-bridges-2-ipconfiguration-currentdefaultgateway": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/2/IPConfiguration/CurrentDefaultGateway"
+},
+"0-0-networking-bridges-2-ipconfiguration-sources": {
+"dataType": "enum_member",
+"dataRank": "array",
+"path": "Networking/Bridges/2/IPConfiguration/Sources"
+},
+"0-0-networking-bridges-2-ipconfiguration-staticdefaultgateway": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/2/IPConfiguration/StaticDefaultGateway"
+},
+"0-0-networking-bridges-2-label": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/2/Label"
+},
+"0-0-networking-bridges-2-macaddress": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/2/MacAddress"
+},
+"0-0-networking-bridges-2-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Bridges/2/Name"
+},
+"0-0-networking-dns-customdnsservers": {
+"dataType": "string",
+"dataRank": "array",
+"path": "Networking/DNS/CustomDNSServers"
+},
+"0-0-networking-dns-utilizeddnsservers": {
+"dataType": "string",
+"dataRank": "array",
+"path": "Networking/DNS/UtilizedDNSServers"
+},
+"0-0-networking-domain-currentdomain": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Domain/CurrentDomain"
+},
+"0-0-networking-domain-customdomain": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Domain/CustomDomain"
+},
+"0-0-networking-dummyinterfaces": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/DummyInterfaces"
+},
+"0-0-networking-ethernetports": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts"
+},
+"0-0-networking-ethernetports-1-broadcastprotection-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/BroadcastProtection/Enabled"
+},
+"0-0-networking-ethernetports-1-currentspeedduplex": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/CurrentSpeedDuplex"
+},
+"0-0-networking-ethernetports-1-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/Enabled"
+},
+"0-0-networking-ethernetports-1-haslink": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/HasLink"
+},
+"0-0-networking-ethernetports-1-macaddress": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/MacAddress"
+},
+"0-0-networking-ethernetports-1-maclearning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/MACLearning"
+},
+"0-0-networking-ethernetports-1-multicastprotection-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/MulticastProtection/Enabled"
+},
+"0-0-networking-ethernetports-1-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/Name"
+},
+"0-0-networking-ethernetports-1-speedduplex": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/1/SpeedDuplex"
+},
+"0-0-networking-ethernetports-2-broadcastprotection-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/BroadcastProtection/Enabled"
+},
+"0-0-networking-ethernetports-2-currentspeedduplex": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/CurrentSpeedDuplex"
+},
+"0-0-networking-ethernetports-2-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/Enabled"
+},
+"0-0-networking-ethernetports-2-haslink": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/HasLink"
+},
+"0-0-networking-ethernetports-2-macaddress": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/MacAddress"
+},
+"0-0-networking-ethernetports-2-maclearning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/MACLearning"
+},
+"0-0-networking-ethernetports-2-multicastprotection-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/MulticastProtection/Enabled"
+},
+"0-0-networking-ethernetports-2-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/Name"
+},
+"0-0-networking-ethernetports-2-speedduplex": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Networking/EthernetPorts/2/SpeedDuplex"
+},
+"0-0-networking-hostname-currentname": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Hostname/CurrentName"
+},
+"0-0-networking-hostname-customname": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Hostname/CustomName"
+},
+"0-0-networking-ipv4dipswitch": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/IPv4DipSwitch"
+},
+"0-0-networking-portmirroring-destination": {
+"dataType": "instance_identity_ref",
+"dataRank": "scalar",
+"path": "Networking/PortMirroring/Destination"
+},
+"0-0-networking-portmirroring-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/PortMirroring/Enabled"
+},
+"0-0-networking-portmirroring-source": {
+"dataType": "instance_identity_ref",
+"dataRank": "scalar",
+"path": "Networking/PortMirroring/Source"
+},
+"0-0-networking-routing-currentroutes": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/Routing/CurrentRoutes"
+},
+"0-0-networking-routing-currentroutes-1-address": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Routing/CurrentRoutes/1/Address"
+},
+"0-0-networking-routing-currentroutes-1-gatewayaddress": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Routing/CurrentRoutes/1/GatewayAddress"
+},
+"0-0-networking-routing-currentroutes-1-gatewaymetric": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "Networking/Routing/CurrentRoutes/1/GatewayMetric"
+},
+"0-0-networking-routing-currentroutes-1-interface": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Routing/CurrentRoutes/1/Interface"
+},
+"0-0-networking-routing-currentroutes-1-source": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Networking/Routing/CurrentRoutes/1/Source"
+},
+"0-0-networking-routing-customroutes": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/Routing/CustomRoutes"
+},
+"0-0-networking-routing-customroutes-1-address": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Routing/CustomRoutes/1/Address"
+},
+"0-0-networking-routing-customroutes-1-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/Routing/CustomRoutes/1/Enabled"
+},
+"0-0-networking-routing-customroutes-1-gatewayaddress": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Routing/CustomRoutes/1/GatewayAddress"
+},
+"0-0-networking-routing-customroutes-1-gatewaymetric": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "Networking/Routing/CustomRoutes/1/GatewayMetric"
+},
+"0-0-networking-routing-customroutes-1-interface": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Networking/Routing/CustomRoutes/1/Interface"
+},
+"0-0-networking-routing-ipforwarding-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/Routing/IPForwarding/Enabled"
+},
+"0-0-networking-routing-ipmasqueradingrules": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/Routing/IPMasqueradingRules"
+},
+"0-0-networking-routing-portforwardingrules": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/Routing/PortForwardingRules"
+},
+"0-0-networking-stormprotection-broadcastratelimit": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "Networking/StormProtection/BroadcastRateLimit"
+},
+"0-0-networking-stormprotection-multicastprotection-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Networking/StormProtection/MulticastProtection/Enabled"
+},
+"0-0-networking-stormprotection-multicastratelimit": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "Networking/StormProtection/MulticastRateLimit"
+},
+"0-0-networking-vlaninterfaces": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Networking/VLANInterfaces"
+},
+"0-0-ntpclient-configuredtimeservers": {
+"dataType": "string",
+"dataRank": "array",
+"path": "NTPClient/ConfiguredTimeServers"
+},
+"0-0-ntpclient-dynamicallyassignedtimeservers": {
+"dataType": "string",
+"dataRank": "array",
+"path": "NTPClient/DynamicallyAssignedTimeServers"
+},
+"0-0-ntpclient-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "NTPClient/Enabled"
+},
+"0-0-ntpclient-isrunning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "NTPClient/IsRunning"
+},
+"0-0-ntpclient-istimeserveravailable": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "NTPClient/IsTimeserverAvailable"
+},
+"0-0-ntpclient-updateinterval": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "NTPClient/UpdateInterval"
+},
+"0-0-oauth2server-accesstokenlifetime": {
+"dataType": "uint64",
+"dataRank": "scalar",
+"path": "OAuth2Server/AccessTokenLifetime"
+},
+"0-0-oauth2server-authcodelifetime": {
+"dataType": "uint64",
+"dataRank": "scalar",
+"path": "OAuth2Server/AuthCodeLifetime"
+},
+"0-0-oauth2server-refreshtokenlifetime": {
+"dataType": "uint64",
+"dataRank": "scalar",
+"path": "OAuth2Server/RefreshTokenLifetime"
+},
+"0-0-oauth2server-silentmodeenabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "OAuth2Server/SilentModeEnabled"
+},
+"0-0-openvpn-certificate": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "OpenVPN/Certificate"
+},
+"0-0-openvpn-certificatedescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "OpenVPN/CertificateDescription"
+},
+"0-0-openvpn-configfile": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "OpenVPN/ConfigFile"
+},
+"0-0-openvpn-configurationdescription": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "OpenVPN/ConfigurationDescription"
+},
+"0-0-openvpn-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "OpenVPN/Enabled"
+},
+"0-0-openvpn-isrunning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "OpenVPN/IsRunning"
+},
+"0-0-openvpn-privatekey": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "OpenVPN/PrivateKey"
+},
+"0-0-passwordmanagement-passworddata": {
+"dataType": "bytes",
+"dataRank": "scalar",
+"path": "PasswordManagement/PasswordData"
+},
+"0-0-reboot-status": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Reboot/Status"
+},
+"0-0-serialinterfaces": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "SerialInterfaces"
+},
+"0-0-serialinterfaces-1-assignedmode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "SerialInterfaces/1/AssignedMode"
+},
+"0-0-serialinterfaces-1-assignedowner": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "SerialInterfaces/1/AssignedOwner"
+},
+"0-0-serialinterfaces-1-currentmode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "SerialInterfaces/1/CurrentMode"
+},
+"0-0-serialinterfaces-1-currentowner": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "SerialInterfaces/1/CurrentOwner"
+},
+"0-0-serialinterfaces-1-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "SerialInterfaces/1/Name"
+},
+"0-0-snmp-communities": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "SNMP/Communities"
+},
+"0-0-snmp-contact": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "SNMP/Contact"
+},
+"0-0-snmp-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "SNMP/Description"
+},
+"0-0-snmp-enable": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "SNMP/Enable"
+},
+"0-0-snmp-location": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "SNMP/Location"
+},
+"0-0-snmp-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "SNMP/Name"
+},
+"0-0-snmp-objectid": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "SNMP/ObjectID"
+},
+"0-0-snmp-trapreceiversv1v2c": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "SNMP/TrapReceiversV1V2c"
+},
+"0-0-snmp-trapreceiversv3": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "SNMP/TrapReceiversV3"
+},
+"0-0-snmp-users": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "SNMP/Users"
+},
+"0-0-ssh-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "SSH/Enabled"
+},
+"0-0-ssh-ispasswordloginallowed": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "SSH/IsPasswordLoginAllowed"
+},
+"0-0-ssh-isrootloginallowed": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "SSH/IsRootLoginAllowed"
+},
+"0-0-ssh-isrunning": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "SSH/IsRunning"
+},
+"0-0-ssh-port": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "SSH/Port"
+},
+"0-0-systems": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Systems"
+},
+"0-0-systems-1-active": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Systems/1/Active"
+},
+"0-0-systems-1-available": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Systems/1/Available"
+},
+"0-0-systems-1-configured": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Systems/1/Configured"
+},
+"0-0-systems-2-active": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Systems/2/Active"
+},
+"0-0-systems-2-available": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Systems/2/Available"
+},
+"0-0-systems-2-configured": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Systems/2/Configured"
+},
+"0-0-systemtime-local-now": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "SystemTime/Local/Now"
+},
+"0-0-systemtime-now": {
+"dataType": "uint64",
+"dataRank": "scalar",
+"path": "SystemTime/Now"
+},
+"0-0-systemtime-timezone": {
+"dataType": "instance_ref",
+"dataRank": "scalar",
+"path": "SystemTime/TimeZone"
+},
+"0-0-timezone": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "TimeZone"
+},
+"0-0-timezone-1-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/1/Description"
+},
+"0-0-timezone-1-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/1/Name"
+},
+"0-0-timezone-1-tzstring": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/1/TZString"
+},
+"0-0-timezone-10-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/10/Description"
+},
+"0-0-timezone-10-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/10/Name"
+},
+"0-0-timezone-11-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/11/Description"
+},
+"0-0-timezone-11-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/11/Name"
+},
+"0-0-timezone-2-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/2/Description"
+},
+"0-0-timezone-2-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/2/Name"
+},
+"0-0-timezone-3-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/3/Description"
+},
+"0-0-timezone-3-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/3/Name"
+},
+"0-0-timezone-4-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/4/Description"
+},
+"0-0-timezone-4-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/4/Name"
+},
+"0-0-timezone-5-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/5/Description"
+},
+"0-0-timezone-5-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/5/Name"
+},
+"0-0-timezone-6-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/6/Description"
+},
+"0-0-timezone-6-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/6/Name"
+},
+"0-0-timezone-7-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/7/Description"
+},
+"0-0-timezone-7-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/7/Name"
+},
+"0-0-timezone-8-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/8/Description"
+},
+"0-0-timezone-8-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/8/Name"
+},
+"0-0-timezone-9-description": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/9/Description"
+},
+"0-0-timezone-9-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "TimeZone/9/Name"
+},
+"0-0-touchpanel-acousticfeedback-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "TouchPanel/AcousticFeedback/Enabled"
+},
+"0-0-version-firmwareversion": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Version/FirmwareVersion"
+},
+"0-0-version-hardwarereleaseindex": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Version/HardwareReleaseIndex"
+},
+"0-0-version-softwarereleaseindex": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Version/SoftwareReleaseIndex"
+},
+"0-0-wagodeviceaccess-allowedunauthenticatedrequests": {
+"dataType": "enum_member",
+"dataRank": "array",
+"path": "WAGODeviceAccess/AllowedUnauthenticatedRequests"
+},
+"0-0-wagodeviceaccess-corspolicy": {
+"dataType": "instance_identity_ref",
+"dataRank": "scalar",
+"path": "WAGODeviceAccess/CORSPolicy"
+},
+"0-0-webbasedmanagement-enabled": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "WebBasedManagement/Enabled"
+},
+"0-0-webserver-applications": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Webserver/Applications"
+},
+"0-0-webserver-applications-1-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Webserver/Applications/1/Name"
+},
+"0-0-webserver-applications-2-httpport": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "Webserver/Applications/2/HTTPPort"
+},
+"0-0-webserver-applications-2-httpsport": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "Webserver/Applications/2/HTTPSPort"
+},
+"0-0-webserver-applications-2-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Webserver/Applications/2/Name"
+},
+"0-0-webserver-applications-2-useseparatedports": {
+"dataType": "boolean",
+"dataRank": "scalar",
+"path": "Webserver/Applications/2/UseSeparatedPorts"
+},
+"0-0-webserver-corspolicies": {
+"dataType": "instantiations",
+"dataRank": "scalar",
+"path": "Webserver/CORSPolicies"
+},
+"0-0-webserver-corspolicies-1-maxage": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "Webserver/CORSPolicies/1/MaxAge"
+},
+"0-0-webserver-corspolicies-1-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Webserver/CORSPolicies/1/Name"
+},
+"0-0-webserver-corspolicies-2-maxage": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "Webserver/CORSPolicies/2/MaxAge"
+},
+"0-0-webserver-corspolicies-2-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Webserver/CORSPolicies/2/Name"
+},
+"0-0-webserver-corspolicies-3-allowedorigins": {
+"dataType": "string",
+"dataRank": "array",
+"path": "Webserver/CORSPolicies/3/AllowedOrigins"
+},
+"0-0-webserver-corspolicies-3-maxage": {
+"dataType": "uint32",
+"dataRank": "scalar",
+"path": "Webserver/CORSPolicies/3/MaxAge"
+},
+"0-0-webserver-corspolicies-3-name": {
+"dataType": "string",
+"dataRank": "scalar",
+"path": "Webserver/CORSPolicies/3/Name"
+},
+"0-0-webserver-defaultapplication": {
+"dataType": "instance_ref",
+"dataRank": "scalar",
+"path": "Webserver/DefaultApplication"
+},
+"0-0-webserver-httpport": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "Webserver/HTTPPort"
+},
+"0-0-webserver-httpsport": {
+"dataType": "uint16",
+"dataRank": "scalar",
+"path": "Webserver/HTTPSPort"
+},
+"0-0-webserver-protocols": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Webserver/Protocols"
+},
+"0-0-webserver-tlsmode": {
+"dataType": "enum_member",
+"dataRank": "scalar",
+"path": "Webserver/TLSMode"
+}
+}
+}

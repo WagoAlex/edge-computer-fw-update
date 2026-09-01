@@ -77,7 +77,22 @@ container/tests/           pytest; backends mocked at the file/subprocess edge.
 Mirrors WAGO's production WDA firmware-update surface so `fw_update.py` drives
 it unchanged. Key invariants to preserve if you touch it:
 
-- JSON:API (`application/vnd.api+json`), envelopes `{"data":{"id","type","attributes":{"value":…}}}`.
+- JSON:API (`application/vnd.api+json`). Envelopes follow WAGO's own OpenAPI 3.1
+  document, diffed against a live CC100 (192.168.42.110) on 2026-09-01:
+  `attributes` carries `dataType`/`dataRank`/`path` beside `value`, resources
+  carry `links`+`relationships`, documents carry `jsonapi` and `meta`. Keep them.
+- `meta.version` is `1.5.2-compat`. The `-compat` suffix is load-bearing: it is
+  how a client tells this apart from real WDA. Never drop it.
+- **`POST /runs` returns 201**, not 200 - a run is a created resource. A method
+  that fails also returns 201 with the error envelope in the body; `fw_update.py`
+  ignores the status code and branches on `domainSpecificStatusCode`.
+- `dataType`/`dataRank`/`path` come from `providers/wda_meta.json`, GENERATED
+  from the cassette - regenerate it, never hand-edit. They are not derivable from
+  the id (`...-dns-utilizeddnsservers` is `Networking/DNS/UtilizedDNSServers`).
+- `GET /openapi/wda.openapi.json` is generated from the provider registry at
+  request time, so the spec cannot drift from the code. It is a STRICT SUBSET of
+  WAGO's 40-path document and `info.description` says exactly what is missing.
+  **It requires auth; a real device serves it anonymously.** Deliberate.
 - Methods at `POST /wda/methods/0-0-firmwareupdate-<m>/runs`; success returns
   `outArgs`, failure returns the WDA error envelope with `code:"26"` +
   `domainSpecificStatusCode` (**95** = not activated, **90** = already active -

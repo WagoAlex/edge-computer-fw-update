@@ -327,6 +327,37 @@ Note that `rauc install` always marks the inactive slot for the *next* boot. The
 device keeps running the current slot until it reboots - including an unplanned
 reboot.
 
+## Inspecting the API
+
+```bash
+curl -sk -u admin:$WDA_PASSWORD https://192.168.2.17/openapi/wda.openapi.json | jq .
+```
+
+An OpenAPI 3.1 document, generated from the provider registry at request time -
+so it lists exactly the parameters, methods and enums this build serves and
+cannot drift from the code. Unlike a real WAGO device, which serves its spec
+anonymously, this one requires authentication.
+
+It is a **strict subset** of WAGO's 40-path WDA 1.5.2 spec, and says so in
+`info.description`: no discovery collections (`/wda/parameters`, `/wda/methods`,
+`/wda/*-definitions`, `/wda/features`, `/wda/monitoring-lists`, `/wda/devices`),
+no OAuth2 or bearer auth, no parameter `PATCH`. A generated client therefore
+fails at build time on what is missing, rather than at runtime against a device.
+
+Responses match the real thing - the shape below was diffed against a live CC100:
+
+```json
+{"data": {"id": "0-0-networking-ethernetports-1-name", "type": "parameters",
+          "attributes": {"dataType": "string", "dataRank": "scalar",
+                         "path": "Networking/EthernetPorts/1/Name", "value": "X1"},
+          "links": {"self": "..."}, "relationships": {"definition": {}, "device": {}}},
+ "jsonapi": {"version": "1.0"},
+ "meta": {"version": "1.5.2-compat", "doc": "/openapi/wda.openapi.json"}}
+```
+
+`meta.version` carries a `-compat` suffix on purpose: it is how a client tells
+this rauc-backed re-implementation apart from a genuine WDA device.
+
 ## Honest boundaries
 
 - **Not real WDA.** Same URLs/JSON/enums for drop-in tooling, but no OAuth2/PAM,
