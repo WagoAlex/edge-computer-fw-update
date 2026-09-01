@@ -36,7 +36,12 @@ ERROR_CAUSES = {0: "NoError", 100: "InternalError", 101: "AbortByUser",
 DSC_NOT_ACTIVATED = "95"
 DSC_ALREADY_ACTIVE = "90"
 
-_lock = threading.Lock()
+# RLock, not Lock: logline() takes this lock and is called from inside sections
+# that already hold it (the terminal branches of _install_worker). With a plain
+# Lock the API deadlocks permanently the moment a real install finishes - every
+# parameter read blocks forever - which only shows up after a full ~5 min rauc
+# install, not in any short smoke test. Found on the edge 2026-09-01.
+_lock = threading.RLock()
 st = {"status": 0, "progress": 0, "errorcause": 0, "debuginfo": "",
       "revertable": True, "uploads": {}, "staged": None, "confirm_timeout": None}
 _log = []  # ring of recent log lines

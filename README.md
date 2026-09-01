@@ -315,6 +315,18 @@ docker build --target dev -t wda-dev .
 docker run --rm --entrypoint python3 wda-dev -m pytest /tests -q
 ```
 
+### Verified end to end
+
+The full sequence has been driven through the REST API against the edge at
+192.168.2.17 (2026-09-01): `activate` -> `start` with no `UploadFiles` (embedded
+bundle) -> ~5 min `rauc install` with live progress -> `Unconfirmed(4)` ->
+`finish` (mark-good) -> `Finished(8)` -> `clear` -> `Inactive(0)`, with slot B
+written and both slots reporting boot status good.
+
+Note that `rauc install` always marks the inactive slot for the *next* boot. The
+device keeps running the current slot until it reboots - including an unplanned
+reboot.
+
 ## Honest boundaries
 
 - **Not real WDA.** Same URLs/JSON/enums for drop-in tooling, but no OAuth2/PAM,

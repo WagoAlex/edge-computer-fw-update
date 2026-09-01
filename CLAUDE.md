@@ -88,6 +88,12 @@ it unchanged. Key invariants to preserve if you touch it:
   for this; keep it green.
 - Enums `STATUS_NAMES` (0-9) and numbered `ERROR_CAUSES` come from
   `fw_update.py` (verified off a TP600, WDA 1.5.2). Don't renumber them.
+- **`_lock` is an RLock and must stay one.** `logline()` takes it and is called
+  from inside sections that already hold it (`_install_worker`'s terminal
+  branches). A plain `Lock` there deadlocks the whole API the instant a real
+  install finishes - every parameter read blocks forever. It survived months
+  because it needs a full ~5 min rauc install to trigger, not a smoke test.
+  Regression test: `tests/test_registry.py::test_install_completion_does_not_deadlock`.
 - State machine: Inactive(0) -activate-> Prepared(2) -getuploadids-> upload
   -start-> Started(3) -rauc install-> Unconfirmed(4) -finish(mark-good)->
   Finished(8) -clear-> Inactive(0). Failure -> Error(7) + errorcause

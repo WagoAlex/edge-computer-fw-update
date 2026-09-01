@@ -40,3 +40,38 @@ def test_state_machine_gating(tmp_path, monkeypatch):
     assert fw.upload(fid)["name"] == "fw.raucb"
     fw.m_clear({})
     assert providers.param_value("0-0-firmwareupdate-status") == 0
+
+
+def test_install_completion_does_not_deadlock(tmp_path, monkeypatch):
+    """_install_worker calls logline() while holding _lock. With a non-reentrant
+    lock that wedges the whole API at the end of every real install - the reads
+    after it never return. Regression: seen live on the edge 2026-09-01."""
+    import subprocess
+    import threading
+
+    class FakeProc:
+        returncode = 0
+        stdout = iter(["  10% installing\n", " 100% done\n"])
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(fw.subprocess, "Popen", lambda *a, **k: FakeProc())
+    src = tmp_path / "b.raucb"
+    src.write_bytes(b"x")
+
+    worker = threading.Thread(target=fw._install_worker, args=(str(tmp_path / "dst.raucb"),),
+                              kwargs={"stage_from": str(src)}, daemon=True)
+    worker.start()
+    worker.join(timeout=5)
+    assert not worker.is_alive(), "install worker deadlocked holding _lock"
+
+    # and the API must still answer afterwards
+    reader = threading.Thread(
+        target=lambda: providers.param_value("0-0-firmwareupdate-status"), daemon=True)
+    reader.start()
+    reader.join(timeout=5)
+    assert not reader.is_alive(), "parameter read blocked on a lock held by the worker"
+    assert providers.param_value("0-0-firmwareupdate-status") == 4      # Unconfirmed
+    assert providers.param_value("0-0-firmwareupdate-progress") == 100
+    fw.m_clear({})
