@@ -47,6 +47,30 @@ services:
     # 443, which is where an unmodified WDA client (fw_update.py -> https://<ip>/wda)
     # looks, so there is no port mapping (host mode forbids one).
     network_mode: host
+    healthcheck:
+      # python3, not curl: the image ships neither curl nor wget. Tries https
+      # then http, so it still works with WDA_TLS=false.
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import os, ssl, sys, urllib.request as u
+          ctx = ssl._create_unverified_context()
+          port = os.environ.get("PORT", "8443")
+          for scheme in ("https", "http"):
+              try:
+                  if u.urlopen(f"{scheme}://127.0.0.1:{port}/health",
+                               context=ctx, timeout=5).status == 200:
+                      sys.exit(0)
+              except Exception:
+                  pass
+          sys.exit(1)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
     volumes:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
