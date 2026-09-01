@@ -147,6 +147,8 @@ container/                 Self-contained updater image (carries the bundle)
   tests/                    pytest, backends mocked at the file/subprocess boundary
   docker-compose.yml        one-shot: flash inactive slot, exit
   docker-compose.server.yml REST API: long-running WDA-shaped service
+  docker-compose.full.yml   reference: EVERY env var and mount, documented,
+                            with both services (wda-api + oneshot flash)
 
 rauc-container/            Variant that mounts the bundle from the device
                             instead of embedding it (Dockerfile, entrypoint,

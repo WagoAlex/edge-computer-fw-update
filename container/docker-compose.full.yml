@@ -1,0 +1,233 @@
+# =============================================================================
+# WAGO Edge Computer firmware-update container - EVERY setting, documented.
+#
+# This is the reference file, not the one to deploy. Every environment variable
+# the code actually reads is listed, with its real default shown as the value.
+# Copy it, delete what you do not need, and keep the rest.
+#
+#   docker-compose.server.yml   the REST API deployment we actually run
+#   docker-compose.yml          the one-shot "flash and exit" deployment
+#   docker-compose.full.yml     this file - reference
+#
+# Defaults are what you get with the variable absent. A variable set to its
+# default is a no-op, so an uncommented line below changes nothing unless you
+# edit its value. Lines under "commented out" headers are NOT active.
+#
+# Two services are defined. Run ONE of them:
+#   docker compose -f docker-compose.full.yml up -d wda-api     # REST API
+#   docker compose -f docker-compose.full.yml run --rm flash    # one-shot
+# =============================================================================
+
+services:
+
+  # ===========================================================================
+  # MODE=server - the long-running WDA-compatible REST API
+  # ===========================================================================
+  wda-api:
+    image: wagoalex/wago-fw-update-edge-computer:bundle-latest
+    container_name: wago-wda-api
+    restart: unless-stopped
+
+    # The container drives the HOST's rauc.service over D-Bus. It must stay
+    # unprivileged: no privileged/pid:host/nsenter. The privileged slot write
+    # happens in rauc on the host, which is the whole point of the design.
+
+    # -- HOST NETWORK ---------------------------------------------------------
+    # Required for the 0-0-networking-* parameters: a container's own netns has
+    # no X1/X2/X11/X12, and without this they read absent (empty port list)
+    # rather than passing the container's eth0 off as X1.
+    #
+    # Host mode forbids `ports:`, so the API binds PORT directly on the host.
+    # It also means Docker's port publishing no longer bypasses firewalld:
+    #   firewall-cmd --permanent --zone=public --add-port=443/tcp
+    #   firewall-cmd --reload
+    # Skip that and the API answers on the device but not from the network.
+    network_mode: host
+
+    environment:
+
+      # -- mode ---------------------------------------------------------------
+      MODE: server                 # server = REST API. Anything else = one-shot.
+
+      # -- listener -----------------------------------------------------------
+      PORT: 443                    # default 8443. Use 443 in host mode so an
+                                   # unmodified WDA client (https://<ip>/wda)
+                                   # reaches it with no URL changes.
+
+      # -- authentication (same posture as PFC/CC WDA) ------------------------
+      WDA_USER: admin              # default admin
+      WDA_PASSWORD: ${WDA_PASSWORD:?set WDA_PASSWORD}
+                                   # default "wago" in code - ALWAYS override.
+                                   # The :? makes compose refuse to start without it.
+      WDA_AUTH: "true"             # default true. "false"/"0"/"no" disables HTTP
+                                   # Basic entirely. Debugging only - this exposes
+                                   # the firmware-update methods to anyone.
+
+      # -- TLS ----------------------------------------------------------------
+      WDA_TLS: "true"              # default true. "false" serves plain HTTP.
+                                   # Debugging only: Basic auth over HTTP sends
+                                   # the password in clear text.
+      TLS_CERT: /run/wda/cert.pem  # default. Self-signed at first start by the
+      TLS_KEY: /run/wda/key.pem    # entrypoint if the files are absent. Mount
+                                   # your own over these paths to use a real cert.
+
+      # -- device identity (reported by 0-0-identity-* and 0-0-version-*) -----
+      ORDER_NUMBER: 0752-9xxx      # default. The literal placeholder - set the
+                                   # real order number before catalog-resolving
+                                   # against a live device.
+      DEVICE_DESCRIPTION: WAGO Edge Computer     # default
+      FIRMWARE_VERSION: "04.01.00" # default. Quote it: unquoted it parses as a
+                                   # number and loses digits.
+      HARDWARE_RELEASE_INDEX: ""   # default empty
+      SOFTWARE_RELEASE_INDEX: ""   # default empty
+      SERIAL_NUMBER: ""            # default: read from DMI product_serial.
+                                   # Set only to override the real serial.
+
+      # -- firmware update / rauc ---------------------------------------------
+      BUNDLE: /firmware/bundle.raucb    # default. The bundle baked into the
+                                   # image, installed by `start` with no
+                                   # UploadFiles. Point elsewhere to use a
+                                   # mounted bundle instead.
+      STAGE_DIR: /docker/rauc-stage     # default. MUST be the same path on host
+                                   # and in the container (bind mount below):
+                                   # the container writes the file, the host's
+                                   # rauc reads it by that path.
+      KEYRING: /etc/rauc/keyring.pem    # default. The host keyring, mounted ro.
+                                   # /dev/null skips verification - test only.
+
+      # -- networking projection ----------------------------------------------
+      PORT_MAP: ""                 # default empty = discover. The edge's
+                                   # /etc/udev/rules.d/20-network-names.rules
+                                   # already renames NICs to X1/X2/X11/X12, so
+                                   # they are found by name and the instance id
+                                   # is the number in it (X11 -> ...-11-*).
+                                   # Escape hatch for a box where those rules did
+                                   # not run: "X1=enp1s0,X2=enp2s0".
+                                   # Addon-card ports (LAN_A/LAN_B) have no
+                                   # number and get no instance.
+
+      # -- local users ---------------------------------------------------------
+      PASSWD_FILE: /host/etc/passwd     # default /etc/passwd, which inside a
+                                   # container is the CONTAINER's - useless.
+                                   # Point at the mounted host file.
+      SHADOW_FILE: /etc/shadow     # default. Deliberately NOT mounted from the
+                                   # host: without it 0-0-localusers-*-
+                                   # ispasswordexpired reads false instead of
+                                   # handing the container every password hash.
+                                   # Mount it only if you accept that trade.
+
+      # -- presets ---------------------------------------------------------------
+      PRESET_DIR: /presets         # default: the predefined presets baked into
+                                   # the image (read-only).
+      CUSTOM_PRESET_DIR: /app/data/presets   # default. On the mounted volume, so
+                                   # presets saved via 0-0-presets-save survive
+                                   # a redeploy.
+
+      # -- read paths (override only for testing against fixtures) ------------
+      SYSFS_NET: /sys/class/net    # default - ethernet ports and bridges
+      PROC_NET_ROUTE: /proc/net/route    # default - current routes
+      RESOLV_CONF: /etc/resolv.conf      # default - utilized DNS servers
+      SYS_BLOCK: /sys/block        # default - memory card presence
+      DMI_DIR: /sys/class/dmi/id   # default - serial number
+
+    volumes:
+      # -- required ------------------------------------------------------------
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+        # How the container reaches the host's rauc.service. Without it every
+        # rauc call fails and the container is useless.
+      - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+        # Host keyring, for verifying bundle signatures.
+      - /docker/rauc-stage:/docker/rauc-stage
+        # Same path both sides - see STAGE_DIR. Needs room for a full bundle
+        # (~1.3 GB); /docker is the 35 GB work disk on our edges.
+
+      # -- recommended ---------------------------------------------------------
+      - ./data:/app/data
+        # Custom presets. Without it they vanish on redeploy.
+      - /etc/passwd:/host/etc/passwd:ro
+        # Real accounts for 0-0-localusers-*. Without it you get the container's
+        # own three accounts, which is worse than nothing because it looks right.
+
+      # -- optional (commented out) --------------------------------------------
+      # - /etc/wda/cert.pem:/run/wda/cert.pem:ro
+      # - /etc/wda/key.pem:/run/wda/key.pem:ro
+      #   Your own TLS cert instead of the generated self-signed one.
+      # - /etc/shadow:/etc/shadow:ro
+      #   Enables real ispasswordexpired. Read the SHADOW_FILE note first.
+      # - /path/to/other.raucb:/firmware/bundle.raucb:ro
+      #   Install a different bundle without rebuilding the image.
+
+    healthcheck:
+      # /health is the only non-WDA path and the only unauthenticated one.
+      # python3, not curl: the image ships neither curl nor wget. Tries https
+      # then http, so the check still works with WDA_TLS=false.
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import os, ssl, sys, urllib.request as u
+          ctx = ssl._create_unverified_context()
+          port = os.environ.get("PORT", "8443")
+          for scheme in ("https", "http"):
+              try:
+                  if u.urlopen(f"{scheme}://127.0.0.1:{port}/health",
+                               context=ctx, timeout=5).status == 200:
+                      sys.exit(0)
+              except Exception:
+                  pass
+          sys.exit(1)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"      # the API logs one line per start; the ring buffer
+        max-file: "3"        # of update log lines lives in memory, not here
+
+  # ===========================================================================
+  # MODE=oneshot - flash the inactive slot once, then exit
+  # ===========================================================================
+  # Run it explicitly, never with `up`:
+  #   docker compose -f docker-compose.full.yml run --rm flash
+  flash:
+    image: wagoalex/wago-fw-update-edge-computer:bundle-latest
+    container_name: wago-fw-flash
+    restart: "no"                  # it is supposed to exit
+    profiles: ["oneshot"]          # keeps `up` from starting it by accident
+    network_mode: host             # not needed to flash; keeps logs consistent
+
+    environment:
+      MODE: oneshot                # default when unset
+      DRY_RUN: "false"             # default. "true" verifies the bundle and the
+                                   # rauc connection, then stops before writing.
+                                   # Run this first on a device you care about.
+      REBOOT: "false"              # default. "true" reboots the HOST over D-Bus
+                                   # after a successful install. The new slot is
+                                   # only running after a reboot - but note rauc
+                                   # has already marked it for next boot, so an
+                                   # unplanned reboot lands there too.
+      BUNDLE: /firmware/bundle.raucb
+      STAGE_DIR: /docker/rauc-stage
+      KEYRING: /etc/rauc/keyring.pem
+
+    volumes:
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+      - /docker/rauc-stage:/docker/rauc-stage
+
+# =============================================================================
+# Not settable here, on purpose
+# -----------------------------------------------------------------------------
+# * Which slot gets written. RAUC always writes the inactive slot and marks it
+#   for next boot. There is no slot-selection knob and there must not be one.
+# * privileged / pid:host / cap_add. The container stays unprivileged; the
+#   privileged work happens in the host's rauc.service. An earlier attempt to
+#   add these was correctly rejected as a container-escape shape.
+# * Anything that writes device configuration. Every parameter except the
+#   firmware-update state machine is read-only, and 0-0-presets-apply returns
+#   an explicit error. Writes are Phase 3.
+# =============================================================================

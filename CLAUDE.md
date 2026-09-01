@@ -69,6 +69,10 @@ container/api.py           Transport only: HTTP, JSON:API, Basic auth, TLS.
 container/providers/       One module per WDA namespace; __init__ merges their
                            PARAMS/RESOLVE/METHODS/ENUMS into one registry.
 container/presets.py       Preset store (no apply, not exposed over HTTP).
+container/docker-compose.full.yml
+                           Reference compose: every env var the code reads, with
+                           its real default as the value, plus both services.
+                           Keep it in sync when you add an os.environ.get().
 container/tests/           pytest; backends mocked at the file/subprocess edge.
 ```
 
