@@ -35,13 +35,16 @@ protocol fw_update.py speaks.
 import base64
 import hmac
 import json
+import logging
 import os
 import re
 import ssl
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import providers
 import openapi
+import wdalog
 from providers import meta
 from providers import firmwareupdate as fw
 
@@ -147,6 +150,7 @@ class H(BaseHTTPRequestHandler):
         return False
 
     def do_GET(self):
+        self._t0 = time.monotonic()
         if not self._authed():
             return
         path = self.path.split("?", 1)[0].rstrip("/")
@@ -182,6 +186,7 @@ class H(BaseHTTPRequestHandler):
         self._404(self.path)
 
     def do_POST(self):
+        self._t0 = time.monotonic()
         if not self._authed():
             return
         path = self.path.split("?", 1)[0].rstrip("/")
@@ -199,6 +204,14 @@ class H(BaseHTTPRequestHandler):
         except (ValueError, AttributeError):
             inargs = {}
         outargs, dsc, detail = fn(inargs)
+        # One line per invocation carrying what the generic request line cannot:
+        # which inArgs were supplied (names only, never values) and the outcome.
+        # A failure is a WARNING - it is the line someone greps for at 3am.
+        if dsc is None:
+            wdalog.method.info("%s inArgs=%s done", mid, sorted(inargs) or "[]")
+        else:
+            wdalog.method.warning("%s inArgs=%s ERROR dsc=%s %s",
+                                  mid, sorted(inargs) or "[]", dsc, detail)
         link = f"/wda/methods/{mid}/runs"
         # 201, per the spec - a run is a created resource. fw_update.py ignores
         # the code and reads the body, so this is safe for the proven client.
@@ -211,6 +224,7 @@ class H(BaseHTTPRequestHandler):
             "outArgs": outargs or {}, "executionStatus": "done"}}, link))
 
     def do_PATCH(self):
+        self._t0 = time.monotonic()
         if not self._authed():
             return
         path = self.path.split("?", 1)[0].rstrip("/")
@@ -231,21 +245,62 @@ class H(BaseHTTPRequestHandler):
             f.seek(offset)
             f.write(data)
         fw.note_upload_size(up, offset + len(data))
+        # A 1.3 GB bundle is over a thousand chunks: one INFO line per 100 keeps
+        # the upload visible in `docker logs` without burying everything else.
+        up["chunks"] = up.get("chunks", 0) + 1
+        total = offset + len(data)
+        if up["chunks"] == 1 or up["chunks"] % 100 == 0:
+            wdalog.http.info("upload %s chunk %d, %.1f MiB written",
+                             m.group(1), up["chunks"], total / 1048576)
+        else:
+            wdalog.http.debug("upload %s chunk %d offset %d len %d",
+                              m.group(1), up["chunks"], offset, len(data))
         self._send(204, None)
 
-    def log_message(self, *a):
-        pass
+    # ---- logging ----------------------------------------------------------
+    # log_request() is called by send_response() for every response, including
+    # the 401s that never reach _send(), so nothing can slip past it.
+
+    def _user(self):
+        """Username from the Authorization header, for the audit line. Never
+        the password - only the part before the colon."""
+        h = self.headers.get("Authorization") or ""
+        if not h.startswith("Basic "):
+            return "-"
+        try:
+            return base64.b64decode(h[6:]).decode("utf-8").partition(":")[0] or "-"
+        except (ValueError, UnicodeDecodeError):
+            return "-"
+
+    def log_request(self, code="-", size="-"):
+        path = self.path.split("?", 1)[0].rstrip("/")
+        ms = int((time.monotonic() - getattr(self, "_t0", time.monotonic())) * 1000)
+        # /health is a 30s healthcheck and each upload chunk is one of a
+        # thousand: both are DEBUG so a healthy device stays readable.
+        chunk = self.command == "PATCH" and path.startswith("/files/")
+        level = logging.DEBUG if (path == "/health" or chunk) else logging.INFO
+        wdalog.http.log(level, "%s %s %s %s %s %dms",
+                        self.client_address[0], self._user(), self.command,
+                        self.path, code, ms)
+
+    def log_error(self, fmt, *args):
+        wdalog.http.warning("%s %s", self.client_address[0], fmt % args)
+
+    def log_message(self, fmt, *args):        # anything else the base class emits
+        wdalog.http.info("%s %s", self.client_address[0], fmt % args)
 
 
 if __name__ == "__main__":
+    wdalog.setup()
     ok = (fw.rauc_info(fw.EMBEDDED)[0] if os.path.isfile(fw.EMBEDDED) else False)
     scheme = "https" if WDA_TLS else "http"
-    print(f"WDA-compatible API on {scheme}://0.0.0.0:{PORT}  order={ORDER} "
-          f"fw={FW_VERSION}  embedded={'yes' if ok else 'no'}  "
-          f"auth={'basic' if WDA_AUTH else 'off'} user={WDA_USER}  "
-          f"params={len(providers.PARAMS)}+dynamic methods={len(providers.METHODS)}",
-          flush=True)
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), H)
+    wdalog.http.info(
+        "listening on %s://0.0.0.0:%d order=%s fw=%s embedded=%s auth=%s user=%s "
+        "params=%d+dynamic methods=%d loglevel=%s",
+        scheme, PORT, ORDER, FW_VERSION, "yes" if ok else "no",
+        "basic" if WDA_AUTH else "OFF", WDA_USER,
+        len(providers.PARAMS), len(providers.METHODS), wdalog.LEVEL)
     if WDA_TLS:
         # HTTPS like PFC/CC WDA. Cert generated by the entrypoint (or mount your
         # own via TLS_CERT/TLS_KEY). Self-signed - clients use verify=False.

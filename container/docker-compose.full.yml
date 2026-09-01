@@ -71,6 +71,16 @@ services:
       TLS_KEY: /run/wda/key.pem    # entrypoint if the files are absent. Mount
                                    # your own over these paths to use a real cert.
 
+      # -- logging --------------------------------------------------------------
+      WDA_LOG_LEVEL: INFO          # default. Every request, method invocation
+                                   # and firmware-update transition goes to
+                                   # stdout (`docker logs`) with an ISO 8601
+                                   # timestamp. DEBUG additionally logs /health
+                                   # and each individual upload chunk - a 30s
+                                   # healthcheck is 2880 lines a day and a
+                                   # 1.3 GB bundle is 1000+ chunks, so they are
+                                   # off by default. Credentials are never logged.
+
       # -- device identity (reported by 0-0-identity-* and 0-0-version-*) -----
       ORDER_NUMBER: 0752-9xxx      # default. The literal placeholder - set the
                                    # real order number before catalog-resolving

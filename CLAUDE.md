@@ -120,6 +120,26 @@ it unchanged. Key invariants to preserve if you touch it:
 - Auth is HTTP Basic over self-signed TLS (PFC/CC posture), not OAuth2/PAM.
   For the real stack front with `wago-wda:x86` (lighttpd+authd); don't grow api.py.
 
+## Logging (container/wdalog.py)
+
+Everything the API does goes to stdout, so `docker logs` is the audit trail.
+ISO 8601 timestamps with UTC offset. Three loggers:
+`wda.http` (one line per request: client, user, method, path, status, ms),
+`wda.method` (one per invocation, with inArg NAMES and the outcome; a failure is
+WARNING with its `dsc`), `wda.update` (state transitions - `logline()` feeds both
+this and the in-memory ring `getlastlogentries` serves).
+
+- **Never log credentials.** Not the Authorization header, not the password, not
+  request bodies. The username is logged on purpose - who ran a firmware update
+  matters. `tests/test_logging.py` asserts no secret reaches the log.
+- `/health` and individual upload chunks are DEBUG: a 30s healthcheck is 2880
+  lines a day and a 1.3 GB bundle is 1000+ chunks. Uploads get one INFO line per
+  100 chunks. `WDA_LOG_LEVEL=DEBUG` turns the rest on.
+- `log_request()` is the hook, not `log_message()`: `send_response()` calls it
+  for EVERY response including the 401s that never reach `_send()`.
+- `PYTHONUNBUFFERED=1` is set in the Dockerfile; without it stdout sits in a pipe
+  buffer and `docker logs` lags by minutes.
+
 ## Providers (read-only, Phase 0-1)
 
 `api.py` dispatches every parameter through `providers.param_value(pid)`. A

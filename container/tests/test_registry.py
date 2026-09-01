@@ -75,3 +75,13 @@ def test_install_completion_does_not_deadlock(tmp_path, monkeypatch):
     assert providers.param_value("0-0-firmwareupdate-status") == 4      # Unconfirmed
     assert providers.param_value("0-0-firmwareupdate-progress") == 100
     fw.m_clear({})
+
+
+def test_unusable_stage_dir_is_a_wda_error_not_a_dropped_connection(monkeypatch):
+    """STAGE_DIR is a host bind mount. If it is missing the client must get an
+    error envelope - an unhandled OSError closes the socket with no response."""
+    fw.m_clear({})
+    monkeypatch.setattr(fw, "STAGE_DIR", "/proc/cannot/create/this")
+    out, dsc, detail = fw.m_activate({})
+    assert out is None and dsc == "1" and "unusable" in detail
+    assert providers.param_value("0-0-firmwareupdate-status") == 0   # stayed Inactive

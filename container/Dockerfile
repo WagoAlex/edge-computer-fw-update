@@ -6,12 +6,12 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends rauc dbus python3 openssl iproute2 \
  && rm -rf /var/lib/apt/lists/*
 COPY entrypoint.sh /entrypoint.sh
-COPY api.py openapi.py presets.py /
+COPY api.py openapi.py presets.py wdalog.py /
 COPY providers/ /providers/
 COPY presets/ /presets/
 RUN chmod +x /entrypoint.sh
 WORKDIR /
-ENV BUNDLE=/firmware/bundle.raucb PYTHONPATH=/
+ENV BUNDLE=/firmware/bundle.raucb PYTHONPATH=/ PYTHONUNBUFFERED=1
 # MODE=server exposes the REST API on this port; oneshot mode ignores it.
 EXPOSE 8443
 ENTRYPOINT ["/entrypoint.sh"]

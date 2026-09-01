@@ -27,6 +27,15 @@ services:
       WDA_PASSWORD: ${WDA_PASSWORD:?set WDA_PASSWORD}   # required
       # WDA_TLS: "false"        # uncomment to serve plain HTTP (debug only)
       # WDA_AUTH: "false"       # uncomment to disable Basic auth (debug only)
+      # -- logging --------------------------------------------------------------
+      WDA_LOG_LEVEL: INFO          # default. Every request, method invocation
+                                   # and firmware-update transition goes to
+                                   # stdout (`docker logs`) with an ISO 8601
+                                   # timestamp. DEBUG additionally logs /health
+                                   # and each individual upload chunk - a 30s
+                                   # healthcheck is 2880 lines a day and a
+                                   # 1.3 GB bundle is 1000+ chunks, so they are
+                                   # off by default. Credentials are never logged.
       ORDER_NUMBER: ${ORDER_NUMBER:-0752-9xxx}
       FIRMWARE_VERSION: ${FIRMWARE_VERSION:-04.01.00}
       # Ports need no mapping: /etc/udev/rules.d/20-network-names.rules already

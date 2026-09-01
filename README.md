@@ -329,6 +329,32 @@ Note that `rauc install` always marks the inactive slot for the *next* boot. The
 device keeps running the current slot until it reboots - including an unplanned
 reboot.
 
+## Logs
+
+Every REST action goes to stdout with an ISO 8601 timestamp, so `docker logs -f`
+is the audit trail:
+
+```
+2026-09-01T08:00:57+00:00 INFO  wda.update activate -> Prepared
+2026-09-01T08:00:57+00:00 INFO  wda.method 0-0-firmwareupdate-activate inArgs=[] done
+2026-09-01T08:00:57+00:00 INFO  wda.http 127.0.0.1 admin POST /wda/methods/0-0-firmwareupdate-activate/runs 201 0ms
+2026-09-01T08:00:58+00:00 WARNING wda.method 0-0-firmwareupdate-start inArgs=[] ERROR dsc=95 firmware update not activated
+2026-09-01T08:00:58+00:00 INFO  wda.http upload d935bbadb4314194 chunk 1, 0.0 MiB written
+```
+
+`wda.http` is one line per request (client, user, verb, path, status, duration),
+`wda.method` one per invocation with its outcome - a failure is a WARNING with
+the `domainSpecificStatusCode` - and `wda.update` the firmware-update state
+transitions.
+
+Credentials are never logged: not the Authorization header, not the password,
+not request bodies. The username is, deliberately - who started a firmware
+update is worth knowing.
+
+`/health` and individual upload chunks are DEBUG, since a 30s healthcheck is
+2880 lines a day and a 1.3 GB bundle is over a thousand chunks; uploads still
+get one INFO line per 100 chunks. `WDA_LOG_LEVEL=DEBUG` turns them on.
+
 ## Inspecting the API
 
 ```bash

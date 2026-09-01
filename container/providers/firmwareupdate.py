@@ -14,6 +14,8 @@ import subprocess
 import threading
 import uuid
 
+import wdalog
+
 EMBEDDED = os.environ.get("BUNDLE", "/firmware/bundle.raucb")
 STAGE_DIR = os.environ.get("STAGE_DIR", "/docker/rauc-stage")
 KEYRING = os.environ.get("KEYRING", "/etc/rauc/keyring.pem")
@@ -48,6 +50,10 @@ _log = []  # ring of recent log lines
 
 
 def logline(msg):
+    """One update event: into the ring that 0-0-firmwareupdate-getlastlogentries
+    serves, AND onto stdout so it is in `docker logs` with a timestamp. The ring
+    is 200 entries and in memory; the docker log is the one that survives."""
+    wdalog.update.info("%s", msg)
     with _lock:
         _log.append(msg)
         del _log[:-200]
@@ -122,7 +128,13 @@ def m_activate(inargs):
     with _lock:
         if st["status"] not in (0, 9):
             return None, DSC_ALREADY_ACTIVE, "firmware update already active"
-        os.makedirs(STAGE_DIR, exist_ok=True)
+        try:
+            os.makedirs(STAGE_DIR, exist_ok=True)
+        except OSError as e:
+            # STAGE_DIR is a bind mount from the host. If it is missing or not
+            # writable, say so as a WDA error - an unhandled OSError here kills
+            # the connection and the client sees no response at all.
+            return None, "1", f"stage directory {STAGE_DIR} unusable: {e}"
         st.update(status=2, progress=0, errorcause=0, debuginfo="", uploads={}, staged=None)
     logline("activate -> Prepared")
     return {}, None, None
@@ -137,7 +149,10 @@ def m_getuploadids(inargs):
         for name in names:
             fid = uuid.uuid4().hex[:16]
             p = os.path.join(STAGE_DIR, fid + ".raucb")
-            open(p, "wb").close()
+            try:
+                open(p, "wb").close()
+            except OSError as e:
+                return None, "1", f"cannot create upload file in {STAGE_DIR}: {e}"
             st["uploads"][fid] = {"name": name, "path": p, "size": 0}
             ids.append(fid)
     logline(f"getuploadids {names} -> {ids}")
@@ -157,7 +172,10 @@ def m_start(inargs):
         else:                                            # no UploadFiles -> built-in bundle
             if not os.path.isfile(EMBEDDED):
                 return None, "1", "no embedded bundle and no UploadFiles given"
-            os.makedirs(STAGE_DIR, exist_ok=True)
+            try:
+                os.makedirs(STAGE_DIR, exist_ok=True)
+            except OSError as e:
+                return None, "1", f"stage directory {STAGE_DIR} unusable: {e}"
             path = os.path.join(STAGE_DIR, "embedded.raucb")
             stage_from = EMBEDDED                         # copied in the worker, not here
         st.update(status=3, progress=0)                  # Started
