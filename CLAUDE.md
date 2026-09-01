@@ -60,11 +60,16 @@ build/make_edge_raucb.sh   RUN ON THE EDGE (root). tar live rootfs -> signed
                            /tmp (tmpfs, OOM risk).
 build/wrap_wup.sh          RUN ON HOST. zip package-info.xml + .raucb -> .wup.
                            Paths point at this repo's bundles/.
-container/Dockerfile       debian-trixie-slim + rauc + dbus + python3, bundle
-                           embedded at /firmware/bundle.raucb.
+container/Dockerfile       debian-trixie-slim + rauc + dbus + python3 + iproute2.
+                           Stages: base -> dev (adds pytest + tests/) -> prod
+                           (adds /firmware/bundle.raucb). Default target = prod.
 container/entrypoint.sh    MODE=server -> exec python3 /api.py; else one-shot
                            install (WAGO "==>" log style, opt-in REBOOT).
-container/api.py           WDA-compatible REST API over rauc (see below).
+container/api.py           Transport only: HTTP, JSON:API, Basic auth, TLS.
+container/providers/       One module per WDA namespace; __init__ merges their
+                           PARAMS/RESOLVE/METHODS/ENUMS into one registry.
+container/presets.py       Preset store (no apply, not exposed over HTTP).
+container/tests/           pytest; backends mocked at the file/subprocess edge.
 ```
 
 ## The REST API (container/api.py)
@@ -87,29 +92,59 @@ it unchanged. Key invariants to preserve if you touch it:
   -start-> Started(3) -rauc install-> Unconfirmed(4) -finish(mark-good)->
   Finished(8) -clear-> Inactive(0). Failure -> Error(7) + errorcause
   (200 if "signature" in rauc output, else 600).
-- No auth by design. For real auth, front with `wago-wda:x86` (lighttpd+authd),
-  don't grow api.py.
+- Auth is HTTP Basic over self-signed TLS (PFC/CC posture), not OAuth2/PAM.
+  For the real stack front with `wago-wda:x86` (lighttpd+authd); don't grow api.py.
+
+## Providers (read-only, Phase 0-1)
+
+`api.py` dispatches every parameter through `providers.param_value(pid)`. A
+provider module exports `PARAMS` (fixed ids), `RESOLVE` (dynamic ids, returns
+`NOTFOUND` when it does not own the id), `METHODS`, `ENUMS`. Adding a namespace
+= one module + one entry in `providers/__init__._MODULES`.
+
+- IDs come from `~/Documents/mcp/wago-plc-mcp-server/docs/edge-fw31-parameters-raw.json`.
+  **There is no `storage`, `metrics`, `log`, `softwareupdate` or `presets`
+  namespace in WDA** - do not add one. A/B slots are `0-0-systems-{1,2}-*`;
+  logs are `0-0-firmwareupdate-getlastlogentries`.
+- Read-only means `current*`/actuals only. `custom*`/`static*` writes are Phase 3
+  and gated on the watchdog-reboot issue. Absent backend -> report absent
+  (`false`/`""`/`[]`), never a plausible-looking guess.
+- **Ports need no mapping table.** `/etc/udev/rules.d/20-network-names.rules` on
+  the edge already renames the NICs to `X1`/`X2` (+ `X11`/`X12` on expansion
+  models), so ports are discovered by name and the instance id is the number in
+  the name. `PORT_MAP` is only an escape hatch. Addon-card ports (`LAN_A`/`LAN_B`
+  in those rules) have no number and get no instance - do not renumber them.
+- Networking needs the host netns (`network_mode: host`); localusers needs the
+  host `/etc/passwd` mounted. `/etc/shadow` is intentionally not mounted.
+- **Host mode is not behind Docker's port mapping, so firewalld applies.** The
+  edge's `public` zone (X1) allows only cockpit/dhcp/ssh; 443 must be opened with
+  `firewall-cmd --permanent --zone=public --add-port=443/tcp`. A port-mapped
+  container bypassed firewalld, which is why this never came up before.
+- Docker's own `docker0`/`br-<netid>`/`veth*` are filtered from bridges AND
+  routes: they are not device networking, and they would shift instance ids
+  whenever a container starts.
+- `0-0-presets-*` is the ONE namespace with no cassette entry, named deliberately
+  by the maintainer on 2026-09-01. It is not licence for a second exception.
+- Unverified: the SpeedDuplex enum. `1000/full` is reported as member 5 from a
+  table inferred off the cassette; the real definition is not published, so no
+  enum is served for it. Confirm against a genuine WDA before relying on it.
 
 ## Build / run / verify
 
 ```bash
 # rebuild + smoke the API (host)
 cd container && docker build -t wagoalex/wago-fw-update-edge-computer:bundle-latest .
-docker run --rm -d --name t -e MODE=server -e KEYRING=/dev/null -p 18080:8080 \
-  wagoalex/wago-fw-update-edge-computer:bundle-latest
-curl -s localhost:18080/wda/parameters/0-0-firmwareupdate-status ; docker rm -f t
+docker run --rm -d --name wdat -e MODE=server -e WDA_PASSWORD=wago \
+  -e KEYRING=/dev/null -p 18443:8443 wagoalex/wago-fw-update-edge-computer:bundle-latest
+curl -sk -u admin:wago https://localhost:18443/wda/parameters/0-0-firmwareupdate-status
+docker rm -f wdat
 
-# api.py self-checks (parser + enums) - run before committing api changes
-cd container && python3 - <<'PY'
-src=open("api.py").read().replace('if __name__ == "__main__":','if False:')
-ns={}; exec(compile(src,"api.py","exec"),ns)
-p=ns["parse_byteranges"]; B="b"
-for pl in [b"\x0d", b"\x0a", b"-", bytes(range(256))]:
-    body=(f"--{B}\r\nContent-Range: bytes 0-{len(pl)-1}/{len(pl)}\r\n\r\n").encode()+pl+f"\r\n--{B}--\r\n".encode()
-    assert p(body,f"multipart/byteranges; boundary={B}")==(0,pl)
-assert ns["ERROR_CAUSES"][602]=="SignatureTooOld"
-print("ok")
-PY
+# provider + preset tests (in-container, per the global testing rule)
+cd container && docker build --target dev -t wda-dev . \
+  && docker run --rm --entrypoint python3 wda-dev -m pytest /tests -q
+
+# the parse_byteranges CRLF self-check and the enum guard now live in
+# tests/test_parse_byteranges.py and tests/test_registry.py - keep them green
 ```
 
 Real-device validation (needs a route to the edge, usually unavailable from the

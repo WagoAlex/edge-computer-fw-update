@@ -7,6 +7,10 @@
 #        finish/clear/cancel/settimeout/getlastlogentries
 #   PATCH /files/{id}                               chunked bundle upload
 #   GET  /wda/parameters/0-0-firmwareupdate-*       status/progress/errorcause/...
+#   GET  /wda/parameters/0-0-networking-*            X1/X2, bridges, routes, DNS (read)
+#   GET  /wda/parameters/0-0-systems-{1,2}-*         the RAUC A/B slots (read)
+#   GET  /wda/parameters/0-0-identity-*|0-0-version-*|0-0-systemtime-*|0-0-localusers-*
+#   POST /wda/methods/0-0-presets-<m>/runs          list/get/save/delete (apply = Phase 3)
 #   GET  /health                                    auth-exempt liveness
 #
 # TLS cert is self-signed on first start; mount your own via TLS_CERT/TLS_KEY.
@@ -17,21 +21,33 @@ services:
     restart: unless-stopped
     environment:
       MODE: server
-      PORT: 8443
+      # host network mode -> bind 443 directly; there is no port mapping to do it.
+      PORT: 443
       WDA_USER: ${WDA_USER:-admin}
       WDA_PASSWORD: ${WDA_PASSWORD:?set WDA_PASSWORD}   # required
       # WDA_TLS: "false"        # uncomment to serve plain HTTP (debug only)
       # WDA_AUTH: "false"       # uncomment to disable Basic auth (debug only)
       ORDER_NUMBER: ${ORDER_NUMBER:-0752-9xxx}
       FIRMWARE_VERSION: ${FIRMWARE_VERSION:-04.01.00}
-    ports:
-      # Map to 443 so an unmodified WDA client (fw_update.py -> https://<ip>/wda)
-      # reaches it. Use "8443:8443" instead if you address it as https://<ip>:8443.
-      - "443:8443"
+      # Ports need no mapping: /etc/udev/rules.d/20-network-names.rules already
+      # names the NICs X1/X2/X11/X12, so they are discovered by name. Set
+      # PORT_MAP="X1=enp1s0,..." only on a box where those rules did not run.
+      PASSWD_FILE: /host/etc/passwd
+    # The 0-0-networking-* reads need the HOST network namespace - a container's
+    # own netns has no X1/X2/X11/X12. Host mode also puts the API straight on
+    # 443, which is where an unmodified WDA client (fw_update.py -> https://<ip>/wda)
+    # looks, so there is no port mapping (host mode forbids one).
+    network_mode: host
     volumes:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
       - /docker/rauc-stage:/docker/rauc-stage
+      # custom presets survive a redeploy (predefined ones ship in the image)
+      - ./data:/app/data
+      # host accounts for 0-0-localusers-*; /etc/shadow is deliberately NOT
+      # mounted - without it ispasswordexpired reads false instead of handing
+      # the container every password hash on the box.
+      - /etc/passwd:/host/etc/passwd:ro
       # optional: mount your own TLS cert instead of the generated self-signed one
       # - /etc/wda/cert.pem:/run/wda/cert.pem:ro
       # - /etc/wda/key.pem:/run/wda/key.pem:ro

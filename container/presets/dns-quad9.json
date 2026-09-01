@@ -1,0 +1,6 @@
+{
+ "description": "Quad9 resolvers (9.9.9.9, 149.112.112.112) - inert until Phase 3 writes exist",
+ "parameters": {
+  "0-0-networking-dns-customdnsservers": ["9.9.9.9", "149.112.112.112"]
+ }
+}

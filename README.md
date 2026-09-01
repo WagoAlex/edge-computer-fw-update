@@ -137,7 +137,14 @@ build/                     Build a bundle FROM a running edge (run on the device
 container/                 Self-contained updater image (carries the bundle)
   Dockerfile                debian-slim + rauc + python3, bundle.raucb inside
   entrypoint.sh             one-shot install (MODE=oneshot) OR REST API (MODE=server)
-  api.py                    WDA-compatible firmware-update REST API over rauc
+  api.py                    WDA transport only: HTTP, JSON:API, Basic auth, TLS
+  providers/                one module per WDA namespace, registered in __init__
+    firmwareupdate.py         0-0-firmwareupdate-* state machine over rauc
+    networking.py             0-0-networking-* from /sys/class/net + /proc/net/route
+    system.py                 identity/version/systemtime/systems (A/B slots)/memorycard
+    localusers.py             0-0-localusers-<uid>-* from the host's /etc/passwd
+  presets.py                presets/*.json store (no apply - see below)
+  tests/                    pytest, backends mocked at the file/subprocess boundary
   docker-compose.yml        one-shot: flash inactive slot, exit
   docker-compose.server.yml REST API: long-running WDA-shaped service
 
@@ -230,12 +237,92 @@ curl -sk $A -X POST "https://$IP/wda/methods/0-0-firmwareupdate-finish/runs" -d 
 curl -sk $A -X POST "https://$IP/wda/methods/0-0-firmwareupdate-clear/runs"  -d '{"data":{"attributes":{"inArgs":{}}}}'
 ```
 
+## Read-only device parameters
+
+Beyond the update state machine the API serves the device's live state as real
+WDA parameters. **Every ID comes from the FW31 cassette**
+(`wago-plc-mcp-server/docs/edge-fw31-parameters-raw.json`) - none are invented,
+per the naming rule in `CLAUDE.md`.
+
+| Namespace | Serves | Backend |
+|---|---|---|
+| `0-0-networking-ethernetports-{1,2}-*` | X1/X2 `name`,`enabled`,`haslink`,`macaddress`,`currentspeedduplex` | `/sys/class/net` |
+| `0-0-networking-bridges-{1,2}-*` | `name`,`macaddress`,`connectedethernetports`,`ipconfiguration-currentaddresses`,`-currentdefaultgateway` | `/sys/class/net`, `ip -o -4 addr` |
+| `0-0-networking-routing-currentroutes-<n>-*` | `address`,`gatewayaddress`,`gatewaymetric`,`interface` | `/proc/net/route` |
+| `0-0-networking-hostname-currentname`, `-domain-currentdomain`, `-dns-utilizeddnsservers` | live names/resolvers | hostname, `/etc/resolv.conf` |
+| `0-0-systems-{1,2}-active\|configured\|available` | the RAUC A/B slots | `rauc status --output-format=json` |
+| `0-0-identity-*`, `0-0-version-*` | order number, serial, versions | env + DMI |
+| `0-0-systemtime-now`, `-local-now` | clock | host clock |
+| `0-0-localusers-<uid>-name\|-ispasswordexpired` | login accounts (root is instance 1) | mounted `/etc/passwd` |
+| `0-0-presets-*` (methods) | named network-config fragments | `presets/` + `/app/data` |
+| `0-0-memorycard-*` | SD/MMC presence | `/sys/block` |
+
+Three deploy details, all handled in `docker-compose.server.yml`:
+
+- **Network reads need the host netns.** A container's own namespace has no
+  X1/X2, so the compose file uses `network_mode: host`. Without it the ports read
+  *absent* (empty list) rather than passing the container's `eth0` off as X1.
+- **Host mode is not behind Docker's port mapping, so firewalld applies.**
+  Docker's published ports bypass firewalld; a host-mode listener does not. The
+  edge's `public` zone allows only cockpit/dhcp/ssh on X1, so open 443 once:
+  `firewall-cmd --permanent --zone=public --add-port=443/tcp && firewall-cmd --reload`.
+  Skip this and the API answers on the device but not from the network.
+- **No port mapping table is needed.** The edge's
+  `/etc/udev/rules.d/20-network-names.rules` already renames every NIC to its
+  WAGO name (`X1`, `X2`, and `X11`/`X12` on the expansion models), so ports are
+  discovered by name and the instance id is the number in it - `X11` is
+  `ethernetports-11`. `PORT_MAP="X1=enp1s0,..."` overrides that on a box where
+  the udev rules did not run.
+
+Docker's own interfaces are filtered out: `docker0`, `br-<netid>` and `veth*` are
+neither WAGO bridges nor device routes, and letting them in would shift every
+instance id whenever a container starts.
+
+Everything above is read-only. The writable twins (`custom*`/`static*` -
+hostname, DNS, routes, bridge membership) are Phase 3 and are not stubbed.
+
+### Presets
+
+A preset is a named network-configuration fragment - per-port IP addresses, DNS
+servers, routes - stored as WDA parameters: `{"parameters": {param-id: value}}`.
+Predefined ones ship in the image; custom ones live on `./data` (mounted at
+`/app/data`) and survive a redeploy.
+
+```bash
+A="-u admin:$WDA_PASSWORD"; B=https://192.168.2.17
+curl -sk $A -X POST "$B/wda/methods/0-0-presets-list/runs" -d '{}'
+curl -sk $A -X POST "$B/wda/methods/0-0-presets-save/runs" -d '{"data":{"attributes":{"inArgs":{
+  "Name":{"value":"site-lab"},"Description":{"value":"lab X1 static"},
+  "Parameters":{"value":{"0-0-networking-dns-customdnsservers":["192.168.2.1"]}}}}}}'
+curl -sk $A -X POST "$B/wda/methods/0-0-presets-get/runs"    -d '{"data":{"attributes":{"inArgs":{"Name":{"value":"site-lab"}}}}}'
+curl -sk $A -X POST "$B/wda/methods/0-0-presets-delete/runs" -d '{"data":{"attributes":{"inArgs":{"Name":{"value":"site-lab"}}}}}'
+```
+
+Names are validated (no path traversal) and every key must be a `0-0-` parameter
+id, so a preset can only ever hold something the device could actually apply.
+
+**`0-0-presets-apply` is not implemented** and returns an explicit WDA error, not
+a 404: applying means writing `custom*` parameters, which is Phase 3.
+`presets` is also the one namespace here with no FW31 cassette entry behind it -
+WDA has no equivalent, so the name was chosen deliberately rather than invented
+in passing.
+
+### Tests
+
+```bash
+cd container
+docker build --target dev -t wda-dev .
+docker run --rm --entrypoint python3 wda-dev -m pytest /tests -q
+```
+
 ## Honest boundaries
 
 - **Not real WDA.** Same URLs/JSON/enums for drop-in tooling, but no OAuth2/PAM,
-  no full parameter tree, no `wdx` provider. It's the update state machine only.
-- **No auth on the API.** Trusted LAN only. For real auth/TLS, front it with the
-  `wago-wda:x86` container (lighttpd + authd) built from the WAGO SDK.
+  no full parameter tree, no `wdx` provider - the update state machine plus the
+  read-only projections above.
+- **Auth is HTTP Basic over self-signed TLS**, matching the PFC/CC posture, not
+  WAGO's OAuth2/PAM stack. For the real thing, front it with the `wago-wda:x86`
+  container (lighttpd + authd) built from the WAGO SDK.
 - **Self-signed bundles.** Install via `rauc` with the baked keyring; they are
   NOT accepted by a real PFC/TP600 WDA (which checks WAGO's production signature).
 

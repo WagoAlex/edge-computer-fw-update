@@ -1,0 +1,8 @@
+{
+ "description": "Example: static address + gateway + DNS on Bridge 1. Copy, edit, save under your own name. Inert until Phase 3 writes exist.",
+ "parameters": {
+  "0-0-networking-bridges-1-ipconfiguration-addresses": ["192.168.2.17/24"],
+  "0-0-networking-bridges-1-ipconfiguration-staticdefaultgateway": "192.168.2.1",
+  "0-0-networking-dns-customdnsservers": ["192.168.2.1"]
+ }
+}
