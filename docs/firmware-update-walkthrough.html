@@ -1,0 +1,889 @@
+<title>Edge WDA Firmware Update</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+  :root {
+    --wago-green: #6ec800;
+    --wago-green-hover: #8bd633;
+    --wago-anthracite: #1f2837;
+    --wago-gray-7: #eff0f1;
+    --wago-gray-15: #dedfe1;
+    --wago-gray-40: #a5a8af;
+    --wago-gray-70: #616a73;
+    --wago-attention: #ffe70a;
+    --wago-warning: #bb0522;
+
+    --page: #ffffff;
+    --surface: #ffffff;
+    --surface-sunk: var(--wago-gray-7);
+    --ink: var(--wago-anthracite);
+    --ink-2: var(--wago-gray-70);
+    --rule: var(--wago-gray-15);
+    --rule-strong: var(--wago-gray-40);
+    --code-bg: var(--wago-gray-7);
+    --code-ink: #1f2837;
+    --band: var(--wago-anthracite);
+    --band-ink: #ffffff;
+    --band-ink-2: var(--wago-gray-40);
+    --shadow: none;
+
+    --font: "Source Sans 3", "Source Sans Pro", -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono: Consolas, "Courier New", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #2a313d;
+      --surface: #333b48;
+      --surface-sunk: #2e3542;
+      --ink: var(--wago-gray-15);
+      --ink-2: var(--wago-gray-40);
+      --rule: #444c59;
+      --rule-strong: #59616e;
+      --code-bg: #2b323e;
+      --code-ink: #dedfe1;
+      --band: #1a212c;
+      --band-ink: #ffffff;
+      --band-ink-2: #707680;
+      --shadow: none;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --page: #2a313d;
+    --surface: #333b48;
+    --surface-sunk: #2e3542;
+    --ink: var(--wago-gray-15);
+    --ink-2: var(--wago-gray-40);
+    --rule: #444c59;
+    --rule-strong: #59616e;
+    --code-bg: #2b323e;
+    --code-ink: #dedfe1;
+    --band: #1a212c;
+    --band-ink: #ffffff;
+    --band-ink-2: #707680;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+
+  /* ---------- header band ---------- */
+
+  .band {
+    background: var(--band);
+    color: var(--band-ink);
+    border-bottom: 4px solid var(--wago-green);
+  }
+  .band .wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 32px;
+    align-items: end;
+    padding-top: 40px;
+    padding-bottom: 34px;
+  }
+  .eyebrow {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--wago-green);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-size: 2.15rem;
+    font-weight: 700;
+    line-height: 1.12;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .band p {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--band-ink-2);
+    font-size: 0.95rem;
+  }
+  .target {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--band-ink);
+    border-left: 3px solid var(--wago-green);
+    padding: 4px 0 4px 12px;
+    white-space: nowrap;
+  }
+  .target span {
+    display: block;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--band-ink-2);
+    letter-spacing: 0;
+  }
+
+  /* ---------- generic section ---------- */
+
+  section { padding: 42px 0 0; }
+  section:last-of-type { padding-bottom: 56px; }
+
+  h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0 0 6px;
+  }
+  .lede {
+    margin: 0 0 22px;
+    color: var(--ink-2);
+    max-width: 74ch;
+    font-size: 0.9rem;
+  }
+  .label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  code, .mono { font-family: var(--mono); font-size: 0.82rem; font-weight: 600; }
+  p code, li code, td code { background: var(--code-bg); padding: 1px 5px; border-radius: 2px; }
+
+  /* ---------- state track ---------- */
+
+  .track {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    background: var(--surface);
+    border: 1px solid var(--rule-strong);
+    box-shadow: var(--shadow);
+  }
+  .track .st {
+    padding: 16px 14px 18px;
+    border-right: 1px solid var(--rule);
+    border-top: 4px solid var(--wago-green);
+  }
+  .track .st:last-child { border-right: 0; }
+  .track .st.err { border-top-color: var(--wago-warning); }
+  .st b {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--ink-2);
+    font-weight: 600;
+  }
+  .st strong {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 2px 0 6px;
+  }
+  .st em {
+    font-style: normal;
+    font-size: 0.82rem;
+    color: var(--ink-2);
+    display: block;
+  }
+
+  /* ---------- lanes ---------- */
+
+  .lanes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    align-items: start;
+  }
+  .lane {
+    background: var(--surface);
+    border: 1px solid var(--rule-strong);
+    box-shadow: var(--shadow);
+  }
+  .lane > header {
+    padding: 18px 22px 16px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface-sunk);
+  }
+  .lane.b > header { border-bottom-color: var(--rule-strong); }
+  .lane h3 {
+    margin: 0 0 4px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .lane header p { margin: 0; color: var(--ink-2); font-size: 0.86rem; }
+  .tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    margin-bottom: 8px;
+    background: var(--wago-green);
+    color: var(--wago-anthracite);
+  }
+  .lane.b .tag { background: var(--wago-anthracite); color: #ffffff; }
+  :root[data-theme="dark"] .lane.b .tag,
+  :root:not([data-theme="light"]) .lane.b .tag { background: var(--wago-gray-40); color: var(--wago-anthracite); }
+
+  ol.steps { list-style: none; margin: 0; padding: 0; }
+  ol.steps > li {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--rule);
+  }
+  ol.steps > li:last-child { border-bottom: 0; }
+  .n {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--wago-anthracite);
+    background: var(--wago-green);
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  ol.steps h4 {
+    margin: 0 0 3px;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  ol.steps p { margin: 0 0 10px; font-size: 0.86rem; color: var(--ink-2); }
+  ol.steps p:last-child { margin-bottom: 0; }
+
+  pre {
+    margin: 0 0 10px;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-left: 3px solid var(--rule-strong);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 2;
+  }
+  pre:last-child { margin-bottom: 0; }
+  pre b { font-weight: 700; color: var(--wago-anthracite); }
+  :root[data-theme="dark"] pre b,
+  :root:not([data-theme="light"]) pre b { color: #ffffff; }
+  pre i { font-style: normal; color: var(--ink-2); }
+
+  .lane.full ol.steps {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lane.full ol.steps > li { border-right: 1px solid var(--rule); }
+  .lane.full ol.steps > li:nth-child(2n) { border-right: 0; }
+  .lane.full ol.steps > li:nth-last-child(-n+2) { border-bottom: 0; }
+  .n.host { background: var(--wago-anthracite); color: #ffffff; }
+  :root[data-theme="dark"] .n.host,
+  :root:not([data-theme="light"]) .n.host { background: var(--wago-gray-40); color: var(--wago-anthracite); }
+  .where {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  /* ---------- notes ---------- */
+
+  .note {
+    border-left: 3px solid var(--wago-attention);
+    background: var(--surface-sunk);
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    margin: 0 0 10px;
+  }
+  .note.stop { border-left-color: var(--wago-warning); }
+  .note:last-child { margin-bottom: 0; }
+  .note strong { font-weight: 700; }
+
+  /* ---------- tables ---------- */
+
+  .tables {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    align-items: start;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--rule-strong);
+    box-shadow: var(--shadow);
+  }
+  .panel h3 {
+    margin: 0;
+    padding: 14px 20px;
+    font-size: 1rem;
+    font-weight: 700;
+    border-bottom: 1px solid var(--rule);
+  }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+  th, td {
+    text-align: left;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.name { font-family: var(--mono); font-weight: 600; }
+  .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    margin-right: 8px;
+    vertical-align: 1px;
+    background: var(--wago-green);
+  }
+  .dot.warn { background: var(--wago-attention); }
+  .dot.err { background: var(--wago-warning); }
+  .dot.idle { background: var(--wago-gray-40); }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding: 22px 0 44px;
+    font-size: 0.75rem;
+    color: var(--ink-2);
+  }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 26px; }
+
+  a { color: inherit; }
+  a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--wago-green); outline-offset: 2px; }
+
+  @media (max-width: 940px) {
+    .lanes, .tables { grid-template-columns: minmax(0, 1fr); }
+    .track { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .track .st:nth-child(3) { border-right: 0; }
+    .band .wrap { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 18px; }
+    .track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .track .st:nth-child(3) { border-right: 1px solid var(--rule); }
+    h1 { font-size: 1.75rem; }
+  }
+</style>
+
+<div class="band">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">WAGO Edge Computer 0752-9xxx</p>
+      <h1>Installing firmware through the edge WDA API</h1>
+      <p>The container exposes WAGO's Device Access surface on an x86 edge and backs it with stock RAUC. Two payload routes share one state machine: the bundle baked into the image, and any signed <code>.raucb</code> you upload yourself.</p>
+    </div>
+    <div class="target">
+      https://192.168.2.17/wda
+      <span>host network, port 443, HTTP Basic, self-signed TLS</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <section>
+    <h2>The state machine both routes drive</h2>
+    <p class="lede">Every method call moves <code>0-0-firmwareupdate-status</code>. Poll that parameter, not the HTTP status code: a failed method run still returns 201 and carries its verdict in the body.</p>
+    <div class="track">
+      <div class="st">
+        <b>0</b><strong>Inactive</strong><em>Idle. <code>activate</code> is the only useful call.</em>
+      </div>
+      <div class="st">
+        <b>2</b><strong>Prepared</strong><em>Stage directory ready. Upload slots can be reserved.</em>
+      </div>
+      <div class="st">
+        <b>3</b><strong>Started</strong><em><code>rauc install</code> runs in the background; progress climbs 0 to 100.</em>
+      </div>
+      <div class="st">
+        <b>4</b><strong>Unconfirmed</strong><em>Inactive slot written and marked for next boot. Waiting for <code>finish</code>.</em>
+      </div>
+      <div class="st">
+        <b>8</b><strong>Finished</strong><em><code>rauc status mark-good</code> ran. <code>clear</code> returns to Inactive.</em>
+      </div>
+      <div class="st err">
+        <b>7</b><strong>Error</strong><em>Read <code>errorcause</code>: 200 is a signature reject, 600 a failed install.</em>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Two routes to a written slot</h2>
+    <p class="lede">The difference is exactly one field. <code>start</code> with an empty <code>UploadFiles</code> installs the bundle inside the image; <code>start</code> with an upload id installs what you pushed. Everything before and after is identical.</p>
+
+    <div class="lanes">
+
+      <!-- ============ LANE A ============ -->
+      <div class="lane a">
+        <header>
+          <span class="tag">Route A</span>
+          <h3>The bundle in the image</h3>
+          <p>No upload, no <code>.wup</code> handling. <code>BUNDLE=/firmware/bundle.raucb</code> is staged to the host-visible path and installed. Roughly 1.3 GB is copied first, so <code>start</code> returns long before anything is written. Available on the <code>bundle-latest</code> image; the 238 MB <code>api-latest</code> image ships without a bundle and answers this route with an error until one is mounted.</p>
+        </header>
+        <ol class="steps">
+          <li>
+            <div class="n">1</div>
+            <div>
+              <h4>Activate</h4>
+              <p>Creates <code>STAGE_DIR</code> and moves status to Prepared. A second activate while a run is live answers <code>domainSpecificStatusCode: "90"</code>, which means already active, not broken.</p>
+<pre>curl -sk -u admin:$PW -X POST \
+  <b>https://192.168.2.17/wda/methods/0-0-firmwareupdate-activate/runs</b>?result-behavior=sync \
+  -H 'Content-Type: application/vnd.api+json' \
+  -d '{"data":{"type":"runs","attributes":{"inArgs":{
+        "KeepCustomerApplication":{"value":false},
+        "CustomKeyValuePairs":{"value":[]}}}}}'</pre>
+            </div>
+          </li>
+          <li>
+            <div class="n">2</div>
+            <div>
+              <h4>Start with no files</h4>
+              <p>An omitted or empty <code>UploadFiles</code> is the documented signal for the embedded bundle. There is no separate endpoint for it.</p>
+<pre>curl -sk -u admin:$PW -X POST \
+  <b>.../0-0-firmwareupdate-start/runs</b>?result-behavior=sync \
+  -H 'Content-Type: application/vnd.api+json' \
+  -d '{"data":{"type":"runs","attributes":{"inArgs":{
+        <b>"UploadFiles":{"value":[]}</b>}}}}'
+
+<i>201 Created</i>
+{"data":{"type":"runs","attributes":{
+   "outArgs":{},"executionStatus":"done"}}}</pre>
+              <div class="note">If no bundle is baked in, the run comes back <code>executionStatus: "error"</code> with detail <code>no embedded bundle and no UploadFiles given</code>. Use route B.</div>
+            </div>
+          </li>
+          <li>
+            <div class="n">3</div>
+            <div>
+              <h4>Poll status and progress</h4>
+              <p>Two plain parameter reads. Staging shows as 0 percent for a minute or two before RAUC starts reporting.</p>
+<pre>watch -n6 'curl -sk -u admin:$PW \
+  <b>.../wda/parameters/0-0-firmwareupdate-progress</b> \
+  | python3 -c "import json,sys; \
+    print(json.load(sys.stdin)[\"data\"][\"attributes\"][\"value\"])"'</pre>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <!-- ============ LANE B ============ -->
+      <div class="lane b">
+        <header>
+          <span class="tag">Route B</span>
+          <h3>Your own signed bundle</h3>
+          <p>Reserve a slot, push the file in chunks, then name the slot in <code>start</code>. This is the path a stock WAGO client already speaks, so an unmodified <code>fw_update.py</code> drives it with no changes.</p>
+        </header>
+        <ol class="steps">
+          <li>
+            <div class="n">1</div>
+            <div>
+              <h4>Unpack the .wup first</h4>
+              <p>A <code>.wup</code> is a zip around <code>package-info.xml</code> and the real payload. The API takes the <code>.raucb</code>, never the wrapper.</p>
+<pre>unzip -o firmware.wup -d /tmp/fwwork
+ls /tmp/fwwork/*.raucb</pre>
+            </div>
+          </li>
+          <li>
+            <div class="n">2</div>
+            <div>
+              <h4>Activate, then reserve an upload id</h4>
+              <p>Same activate as route A. Then ask for one id per file name; each id becomes an empty file in <code>STAGE_DIR</code> on the shared bind mount.</p>
+<pre>curl -sk -u admin:$PW -X POST \
+  <b>.../0-0-firmwareupdate-getuploadids/runs</b>?result-behavior=sync \
+  -H 'Content-Type: application/vnd.api+json' \
+  -d '{"data":{"type":"runs","attributes":{"inArgs":{
+        "FileNames":{"value":["firmware.raucb"]}}}}}'
+
+<i>201 Created</i>
+{"outArgs":{"UploadFiles":{"value":[<b>"9f2c41ab77e05d13"</b>]}}}</pre>
+              <div class="note stop">Calling this before <code>activate</code> returns <code>domainSpecificStatusCode: "95"</code> - not activated. Order is enforced.</div>
+            </div>
+          </li>
+          <li>
+            <div class="n">3</div>
+            <div>
+              <h4>PATCH the bundle in byte ranges</h4>
+              <p>One <code>multipart/byteranges</code> part per request, placed by its <code>Content-Range</code> offset. 4 MB is the verified safe chunk size; each accepted chunk answers 204.</p>
+<pre>PATCH <b>/files/9f2c41ab77e05d13</b>
+Content-Type: multipart/byteranges; boundary=WAGOFW
+
+--WAGOFW
+Content-Type: application/octet-stream
+<b>Content-Range: bytes 0-3999999/1342177280</b>
+
+&lt;4 MB of binary&gt;
+--WAGOFW--</pre>
+<pre>total=$(stat -c%s fw.raucb); off=0; n=4000000
+while [ $off -lt $total ]; do
+  end=$(( off + n - 1 )); [ $end -ge $total ] &amp;&amp; end=$(( total - 1 ))
+  printf -- '--WAGOFW\r\nContent-Type: application/octet-stream\r\n'\
+'Content-Range: bytes %d-%d/%d\r\n\r\n' $off $end $total &gt; /tmp/part
+  dd if=fw.raucb bs=1 skip=$off count=$(( end - off + 1 )) &gt;&gt; /tmp/part 2&gt;/dev/null
+  printf '\r\n--WAGOFW--\r\n' &gt;&gt; /tmp/part
+  curl -sk -u admin:$PW -X PATCH --data-binary @/tmp/part \
+    -H 'Content-Type: multipart/byteranges; boundary=WAGOFW' \
+    https://192.168.2.17/files/9f2c41ab77e05d13
+  off=$(( end + 1 ))
+done</pre>
+              <div class="note">Chunk assembly strips exactly one trailing CRLF. A client that trims a byte set instead will silently corrupt any chunk ending in <code>0x0d</code>, <code>0x0a</code> or <code>0x2d</code>.</div>
+            </div>
+          </li>
+          <li>
+            <div class="n">4</div>
+            <div>
+              <h4>Start with the id</h4>
+              <p>The file is already on the host path RAUC reads, so nothing is copied. Verification happens here: the bundle signature is checked against the mounted host keyring.</p>
+<pre>-d '{"data":{"type":"runs","attributes":{"inArgs":{
+      <b>"UploadFiles":{"value":["9f2c41ab77e05d13"]}</b>}}}}'</pre>
+              <div class="note stop"><strong>Self-signed bundles.</strong> A bundle built by <code>make_edge_raucb.sh</code> verifies against this edge's <code>/etc/rauc/keyring.pem</code> only. A genuine PFC or TP600 rejects it on the production signature check, and any bundle signed by a key this device does not trust lands in status 7 with errorcause 200.</div>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Closing out, on either route</h2>
+    <p class="lede">RAUC has written the inactive slot and set it for next boot. Nothing is permanent until the update is confirmed.</p>
+    <div class="lanes">
+      <div class="lane">
+        <ol class="steps">
+          <li>
+            <div class="n">5</div>
+            <div>
+              <h4>Finish at status 4</h4>
+              <p>Runs <code>rauc status mark-good</code> and moves to Finished (8). Called in any other status it returns an error run with detail <code>not finishable in status N</code>.</p>
+<pre>curl -sk -u admin:$PW -X POST \
+  <b>.../0-0-firmwareupdate-finish/runs</b>?result-behavior=sync -d '{}'</pre>
+            </div>
+          </li>
+          <li>
+            <div class="n">6</div>
+            <div>
+              <h4>Clear, then reboot when you choose</h4>
+              <p><code>clear</code> deletes the staged upload files and returns status to Inactive (0). The new slot boots on the next restart, which the API never triggers on its own.</p>
+<pre>curl -sk -u admin:$PW -X POST \
+  <b>.../0-0-firmwareupdate-clear/runs</b>?result-behavior=sync -d '{}'</pre>
+            </div>
+          </li>
+        </ol>
+      </div>
+      <div class="lane">
+        <ol class="steps">
+          <li>
+            <div class="n">-</div>
+            <div>
+              <h4>Read the log ring at any point</h4>
+              <p>The last 200 update events live in memory and are also on stdout with timestamps, so <code>docker logs</code> is the audit trail that survives a restart.</p>
+<pre>curl -sk -u admin:$PW -X POST \
+  <b>.../0-0-firmwareupdate-getlastlogentries/runs</b>?result-behavior=sync \
+  -d '{"data":{"type":"runs","attributes":{"inArgs":{
+        "EntryCount":{"value":25}}}}}'
+
+<i>outArgs.Entries.value</i>
+[ "activate -&gt; Prepared",
+  "staging embedded bundle -&gt; /docker/rauc-stage/embedded.raucb",
+  "rauc install /docker/rauc-stage/embedded.raucb",
+  "install done -&gt; Unconfirmed (call finish)" ]</pre>
+            </div>
+          </li>
+          <li>
+            <div class="n">-</div>
+            <div>
+              <h4>Abandon a run</h4>
+              <p><code>cancel</code> drops straight back to Inactive with errorcause 101, AbortByUser. It does not stop a RAUC install already in flight.</p>
+<pre>curl -sk -u admin:$PW -X POST \
+  <b>.../0-0-firmwareupdate-cancel/runs</b>?result-behavior=sync -d '{}'</pre>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Building the bundle you upload</h2>
+    <p class="lede">Route B needs a signed <code>.raucb</code>. There is no cross-build: the bundle is a capture of a running edge rootfs, so steps 1 to 7 run on the device itself, as root, under <code>/docker</code>. Building under <code>/tmp</code> is a tmpfs and will run the box out of memory. The finished script is <code>build/make_edge_raucb.sh</code>; the steps below are what it does and why each one is there.</p>
+
+    <div class="lane full">
+      <header>
+        <span class="tag">Route B, upstream</span>
+        <h3>From a running edge to a signed .wup</h3>
+        <p>Roughly 25 minutes and about 3 GB of scratch space on the 33 GB work disk. The result is accepted by any device that trusts the same signing certificate, and by nothing else.</p>
+      </header>
+      <ol class="steps">
+        <li>
+          <div class="n">1</div>
+          <div>
+            <span class="where">On the edge, as root</span>
+            <h4>Provide the build tools</h4>
+            <p><code>mksquashfs</code> is not in the base image and <code>rauc bundle</code> cannot run without it. Install it before the rootfs is tarred, so it is captured into the image and every device flashed from the result can build its own bundles.</p>
+<pre>ssh root@192.168.2.17
+apt-get update
+apt-get install -y --no-install-recommends squashfs-tools
+command -v rauc mksquashfs openssl</pre>
+          </div>
+        </li>
+        <li>
+          <div class="n">2</div>
+          <div>
+            <span class="where">On the edge, as root</span>
+            <h4>Create the signing key and certificate</h4>
+            <p>Self-signed, 4096 bit, ten years. The private key stays on this device and is excluded from the capture in step 5, so it never travels inside a bundle.</p>
+<pre>openssl req -x509 -newkey rsa:4096 -nodes \
+  -keyout <b>/etc/rauc/key.pem</b> -out <b>/etc/rauc/cert.pem</b> \
+  -subj "/O=WAGO/CN=WAGO Edge Self-Signed" -days 3650
+chmod 600 /etc/rauc/key.pem</pre>
+          </div>
+        </li>
+        <li>
+          <div class="n">3</div>
+          <div>
+            <span class="where">On the edge, as root</span>
+            <h4>Make the device trust that certificate</h4>
+            <p>RAUC verifies against the keyring named in <code>system.conf</code>. Register the certificate as the keyring before the capture, so the trust travels with the image and no device needs manual preparation later.</p>
+<pre>cp /etc/rauc/cert.pem <b>/etc/rauc/keyring.pem</b>
+grep -q '^\[keyring\]' /etc/rauc/system.conf \
+  || printf '\n[keyring]\npath=/etc/rauc/keyring.pem\n' \
+     &gt;&gt; /etc/rauc/system.conf</pre>
+            <div class="note">This is the whole reason a self-signed bundle installs here and is rejected by a genuine PFC or TP600. Those check a production signature this line cannot forge.</div>
+          </div>
+        </li>
+        <li>
+          <div class="n">4</div>
+          <div>
+            <span class="where">On the edge, as root</span>
+            <h4>Load loop and dm-verity at boot</h4>
+            <p>A verity bundle is mounted through a loop device. Without both modules, the install fails at <code>Failed to open /dev/loop-control</code> - and it fails on the target device, not here, so it has to be baked in now.</p>
+<pre>mkdir -p /etc/modules-load.d
+printf 'loop\ndm-verity\n' &gt; <b>/etc/modules-load.d/rauc.conf</b></pre>
+          </div>
+        </li>
+        <li>
+          <div class="n">5</div>
+          <div>
+            <span class="where">On the edge, as root</span>
+            <h4>Capture the live rootfs</h4>
+            <p>Volatile mounts, the work disk and the private key are excluded. Everything else, including the three files added above, goes into the payload.</p>
+<pre>OUT=/docker/edge-build; mkdir -p $OUT/content
+tar --numeric-owner --one-file-system \
+    --exclude=./tmp/* --exclude=./proc/* --exclude=./sys/* \
+    --exclude=./dev/* --exclude=./run/* --exclude=./mnt/* \
+    --exclude=./media/* --exclude=./docker/* \
+    --exclude=./lost+found <b>--exclude=./etc/rauc/key.pem</b> \
+    -czf $OUT/content/<b>rootfs.tar.gz</b> -C / .</pre>
+          </div>
+        </li>
+        <li>
+          <div class="n">6</div>
+          <div>
+            <span class="where">On the edge, as root</span>
+            <h4>Write the manifest</h4>
+            <p><code>compatible</code> must match <code>/etc/rauc/system.conf</code> character for character, or the install is refused on compatibility grounds before anything is written.</p>
+<pre>cat &gt; $OUT/content/<b>manifest.raucm</b> &lt;&lt;'EOF'
+[update]
+compatible=WAGO Edge Computer 752-9xxx
+version=4.1.0
+
+[bundle]
+format=verity
+
+[image.rootfs]
+filename=rootfs.tar.gz
+EOF</pre>
+            <div class="note stop">Do not add <code>sha256</code> or <code>size</code> lines. <code>rauc bundle</code> computes them itself and aborts with <code>Unexpected digest</code> if it finds them pre-filled.</div>
+          </div>
+        </li>
+        <li>
+          <div class="n">7</div>
+          <div>
+            <span class="where">On the edge, as root</span>
+            <h4>Sign the bundle, then read it back</h4>
+            <p><code>rauc info</code> against the keyring is the same check the API runs at <code>start</code>. If it passes here it will pass there; if it fails here, nothing else in this page will work.</p>
+<pre>NAME=WAGO_OS0752-9xxx_Edge_FW5_V040100_IX05
+rauc bundle --cert=/etc/rauc/cert.pem --key=/etc/rauc/key.pem \
+  $OUT/content <b>$OUT/$NAME.raucb</b>
+
+rauc info --keyring /etc/rauc/keyring.pem $OUT/$NAME.raucb
+<i>Compatible:  'WAGO Edge Computer 752-9xxx'
+Version:     '4.1.0'
+Verified inline signature by 'WAGO Edge Self-Signed'</i></pre>
+          </div>
+        </li>
+        <li>
+          <div class="n host">8</div>
+          <div>
+            <span class="where">On the workstation</span>
+            <h4>Wrap it as a .wup</h4>
+            <p>Only needed for clients that resolve firmware from a catalog: a <code>.wup</code> is a zip of <code>package-info.xml</code> plus the bundle, with the XML stored first, exactly as WAGO ships them. The API itself always takes the bare <code>.raucb</code>.</p>
+<pre>scp root@192.168.2.17:/docker/edge-build/$NAME.raucb bundles/
+bash build/wrap_wup.sh          <i># writes bundles/$NAME.wup</i>
+unzip -l bundles/$NAME.wup</pre>
+            <div class="note">The <code>OrderNo</code> in <code>package-info.xml</code> is the literal placeholder <code>0752-9xxx</code>. A catalog client matches on that field, so set the real order number before pointing one at a live device.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2>Reference</h2>
+    <p class="lede">Enum values are the ones a real WDA 1.5.2 device reports; they are not renumbered here. Read them live from <code>/wda/parameter-definitions/0-0-firmwareupdate-status/enum</code>.</p>
+    <div class="tables">
+
+      <div class="panel">
+        <h3>Status values you will actually see</h3>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Value</th><th>Name</th><th>Means</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="num">0</td><td class="name"><span class="dot idle"></span>Inactive</td><td>Idle, ready for activate</td></tr>
+              <tr><td class="num">2</td><td class="name"><span class="dot"></span>Prepared</td><td>Stage directory ready</td></tr>
+              <tr><td class="num">3</td><td class="name"><span class="dot"></span>Started</td><td>Install running, watch progress</td></tr>
+              <tr><td class="num">4</td><td class="name"><span class="dot warn"></span>Unconfirmed</td><td>Slot written, finish required</td></tr>
+              <tr><td class="num">7</td><td class="name"><span class="dot err"></span>Error</td><td>See errorcause and debuginfo</td></tr>
+              <tr><td class="num">8</td><td class="name"><span class="dot"></span>Finished</td><td>Confirmed, clear to reset</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Failures this build reports</h3>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Code</th><th>Name</th><th>Cause</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="num">101</td><td class="name">AbortByUser</td><td><code>cancel</code> was called</td></tr>
+              <tr><td class="num">200</td><td class="name">SignatureInvalid</td><td>Bundle not signed by a trusted key</td></tr>
+              <tr><td class="num">600</td><td class="name">UpdateFailed</td><td>Staging or <code>rauc install</code> failed</td></tr>
+              <tr><td class="num">90</td><td class="name">dsc AlreadyActive</td><td>Update already running</td></tr>
+              <tr><td class="num">95</td><td class="name">dsc NotActivated</td><td>Called out of order</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Methods</h3>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Method id</th><th>inArgs</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="name">0-0-firmwareupdate-activate</td><td>KeepCustomerApplication, CustomKeyValuePairs</td></tr>
+              <tr><td class="name">0-0-firmwareupdate-getuploadids</td><td>FileNames</td></tr>
+              <tr><td class="name">0-0-firmwareupdate-start</td><td>UploadFiles (empty for the embedded bundle)</td></tr>
+              <tr><td class="name">0-0-firmwareupdate-finish</td><td>none</td></tr>
+              <tr><td class="name">0-0-firmwareupdate-clear</td><td>none</td></tr>
+              <tr><td class="name">0-0-firmwareupdate-cancel</td><td>none</td></tr>
+              <tr><td class="name">0-0-firmwareupdate-settimeout</td><td>Timeout</td></tr>
+              <tr><td class="name">0-0-firmwareupdate-getlastlogentries</td><td>EntryCount</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Before the first call</h3>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Check</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="name">firewall-cmd --add-port=443/tcp</td><td>Host network mode is not behind Docker's port publishing, so firewalld applies</td></tr>
+              <tr><td class="name">/run/dbus/system_bus_socket</td><td>The only way the container reaches the host RAUC service</td></tr>
+              <tr><td class="name">/docker/rauc-stage</td><td>Must be the same path inside and outside; the host RAUC opens the file by that path</td></tr>
+              <tr><td class="name">/etc/rauc/keyring.pem</td><td>Signature verification. <code>KEYRING=/dev/null</code> skips it, for tests only</td></tr>
+              <tr><td class="name">curl -k</td><td>The TLS certificate is self-signed at first start unless you mount your own</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Image variants</h3>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Tag</th><th>Size</th><th>Carries</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="name">bundle-latest</td><td class="num">2.8 GB</td><td>API plus the embedded bundle. Both routes work out of the box</td></tr>
+              <tr><td class="name">api-latest</td><td class="num">238 MB</td><td>API only, built with <code>--target base</code>. Route B, or mount a bundle at <code>BUNDLE</code></td></tr>
+              <tr><td class="name">bundle-V040100_IX05</td><td class="num">2.79 GB</td><td>Pinned firmware revision of <code>bundle-latest</code></td></tr>
+              <tr><td class="name">rauc</td><td class="num">168 MB</td><td>One-shot installer, no REST surface</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Where the build artifacts live</h3>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Path</th><th>Holds</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="name">/docker/edge-build/content/</td><td>rootfs.tar.gz and manifest.raucm, the bundle input</td></tr>
+              <tr><td class="name">/docker/edge-build/*.raucb</td><td>The signed bundle, roughly 1.3 GB</td></tr>
+              <tr><td class="name">/etc/rauc/key.pem</td><td>Signing key. Never leaves the device, never enters a bundle</td></tr>
+              <tr><td class="name">/etc/rauc/keyring.pem</td><td>What every verification is checked against, here and in the container</td></tr>
+              <tr><td class="name">bundles/*.wup</td><td>Catalog-ready zip, written on the workstation by wrap_wup.sh</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>WDA compatibility layer, <code>meta.version 1.5.2-compat</code></span>
+    <span>Spec served at <code>/openapi/wda.openapi.json</code>, authenticated</span>
+    <span>RAUC selects the inactive slot; slot choice is never a client decision</span>
+  </div>
+</footer>

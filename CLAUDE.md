@@ -201,7 +201,9 @@ rauc install itself - it requires the real host rauc.service.
 ## Docker Hub
 
 `wagoalex/wago-fw-update-edge-computer`: `bundle-latest`, `bundle-V040100_IX05`
-(self-contained), `rauc` (non-embedded client). Push after any container change.
+(self-contained), `api-latest` (REST API only, no embedded bundle - `docker build
+--target base`, 238 MB; `docker-compose.api.yml` deploys it), `rauc` (non-embedded
+client). Push after any container change.
 
 ## Device facts
 
