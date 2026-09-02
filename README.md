@@ -380,21 +380,39 @@ Notes that change what you read:
 - An absent backend reports absent (`false`, `""`, `[]`), never a plausible
   guess. Without `/etc/passwd` mounted you get the container's own accounts,
   which looks right and is not.
-- Two parameters are writable, see [6.8](#68-writing-hostname-and-dns). Every
+- Four parameters are writable, see [6.8](#68-writable-parameters). Every
   other `custom*` / `static*` id is still absent rather than stubbed.
 
-### 6.8 Writing hostname and DNS
+### 6.8 Writable parameters
 
-Two parameters accept a write. They are the two that cannot cut the connection
-the request arrived on, which is why they are the first slice.
+Four parameters accept a write. None of them can cut the connection the request
+arrived on, which is why they are the first slice.
 
 | Parameter | Backend | Applies to |
 |---|---|---|
-| `0-0-networking-hostname-customname` | `org.freedesktop.hostname1.SetStaticHostname` | `/etc/hostname` on the host |
-| `0-0-networking-dns-customdnsservers` | `org.freedesktop.resolve1.Manager.SetLinkDNS` | the link carrying the default route, else the first with carrier |
+| `0-0-networking-hostname-customname` | `hostname1.SetStaticHostname` | `/etc/hostname` on the host |
+| `0-0-networking-domain-customdomain` | NM `ipv4/ipv6.dns-search` | the resolver search domain on the link's profile |
+| `0-0-networking-dns-customdnsservers` | `resolve1.SetLinkDNS`, else NM `ipv4/ipv6.dns` | the link carrying the default route, else the first with carrier |
+| `0-0-networking-routing-ipforwarding-enabled` | sysctl drop-in + `systemd-sysctl` restart | `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding` |
 
-Both go over the system D-Bus socket the container already mounts, so nothing
-gains a privilege: systemd does the privileged part and polkit decides.
+The first three go over the system D-Bus socket the container already mounts, so
+nothing gains a privilege: systemd or NetworkManager does the privileged part and
+polkit decides. The edge has no systemd-resolved, so DNS and the search domain go
+through NetworkManager there; a device with resolved uses `SetLinkDNS`.
+
+**Forwarding is opt-in and off by default.** `/proc/sys` is read-only in a
+container and running `sysctl -w` on the host would mean arbitrary root exec over
+D-Bus, which this project refuses. Instead the API writes
+`/etc/sysctl.d/99-wda-ipforwarding.conf` and restarts one named unit, and that
+needs a mount you have to add deliberately:
+
+```yaml
+    volumes:
+      - /etc/sysctl.d:/etc/sysctl.d      # only if you want forwarding writable
+```
+
+Without it the write answers `503` naming the mount, and the container's
+privileges are exactly what they were.
 
 ```bash
 curl -sk -u admin:$WDA_PASSWORD -X PATCH \
@@ -698,7 +716,7 @@ with slot B written and both slots reporting boot status good.
 - **Not real WDA.** Same URLs, JSON and enums for drop-in tooling, but no
   OAuth2/PAM, no full parameter tree, no `wdx` provider: the update state machine
   plus the read-only projections in [6.7](#67-parameters) and the two writable
-  ids in [6.8](#68-writing-hostname-and-dns).
+  ids in [6.8](#68-writable-parameters).
 - **Auth is HTTP Basic over self-signed TLS**, the PFC/CC posture. For the real
   stack, front it with the `wago-wda:x86` container (lighttpd + authd) from the
   WAGO SDK rather than growing `api.py`.
@@ -707,8 +725,8 @@ with slot B written and both slots reporting boot status good.
 - **The API never reboots the device.** `rauc install` marks the inactive slot
   for the next boot; the device keeps running the current slot until it
   restarts, including an unplanned restart.
-- **Writes are one slice deep.** Hostname and DNS are writable
-  ([6.8](#68-writing-hostname-and-dns)); every other `custom*` / `static*`
+- **Writes are one slice deep.** Hostname, domain, DNS and IP forwarding are writable
+  ([6.8](#68-writable-parameters)); every other `custom*` / `static*`
   parameter and `0-0-presets-apply` are not implemented and not stubbed.
   Nothing that sets an IP address is writable, by standing rule.
 

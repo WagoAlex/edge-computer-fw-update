@@ -5,14 +5,19 @@ Reads are the kernel's own views - /sys/class/net, /proc/net/route,
 /etc/resolv.conf - so there is no NetworkManager-vs-networkd variance and no
 subprocess per parameter.
 
-Writes (Phase 3, slice 1) cover exactly two ids, the two that cannot cut the
-connection they arrive on:
+Writes (Phase 3) cover four ids, none of which can cut the connection they
+arrive on:
 
-    0-0-networking-hostname-customname     -> hostname1.SetStaticHostname
-    0-0-networking-dns-customdnsservers    -> resolve1.SetLinkDNS
+    0-0-networking-hostname-customname   -> hostname1.SetStaticHostname
+    0-0-networking-domain-customdomain   -> NM ipv4/ipv6.dns-search on the profile
+    0-0-networking-dns-customdnsservers  -> resolve1.SetLinkDNS, else NM ipv4/ipv6.dns
+    0-0-networking-routing-ipforwarding-enabled -> sysctl drop-in (see sysctl.py)
 
-Both go through the system D-Bus socket (providers/hostcfg.py), so the container
-stays unprivileged. `custom*` is the operator's override and is stored here;
+The first three go through the system D-Bus socket the container already has, so
+nothing is granted. Forwarding is the exception and is opt-in: it needs
+/etc/sysctl.d mounted read-write, and without that mount it fails loudly.
+
+`custom*` is the operator's override and is stored here;
 `current*`/`utilized*` keep reading the live system and only change once the
 system agrees - on a real CC100 `customname` is "" while `currentname` is
 `CC100-592E6C`, and this build must not fabricate that relationship either way.
@@ -43,7 +48,7 @@ import struct
 import wdalog
 
 from . import NOTFOUND, WriteError, cached
-from . import hostcfg, nmcfg
+from . import hostcfg, nmcfg, sysctl
 
 SYS = os.environ.get("SYSFS_NET", "/sys/class/net")
 PROC_ROUTE = os.environ.get("PROC_NET_ROUTE", "/proc/net/route")
@@ -227,6 +232,17 @@ def _hostname():
 
 
 def _domain():
+    # NetworkManager first, for the same reason the hostname asks hostnamed:
+    # the container's /etc/resolv.conf is Docker's copy from container start and
+    # never follows a change made on the host.
+    try:
+        dev, _idx = _dns_link()
+    except WriteError:
+        dev = None
+    if dev:
+        live = nmcfg.searches(dev)
+        if live:
+            return live[0]
     fqdn = socket.getfqdn()
     return fqdn.split(".", 1)[1] if "." in fqdn else ""
 
@@ -243,7 +259,12 @@ def _dns():
 # ---- custom* : the writable twins -----------------------------------------
 
 _DEFAULTS = {"0-0-networking-hostname-customname": "",
+             "0-0-networking-domain-customdomain": "",
              "0-0-networking-dns-customdnsservers": []}
+# A domain is dot-separated RFC 1123 labels, 255 chars total - the rule the
+# Device Sphere twin states for Custom Domain ("localdomain.lan" on the PFC300).
+_DOMAIN_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+                        r"(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$")
 # RFC 1123 label - exactly the rule the Device Sphere twin states for Custom Name
 _HOSTNAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
@@ -282,6 +303,17 @@ def _check_hostname(value):
     if len(value) > 63 or not _HOSTNAME_RE.match(value):
         raise WriteError(400, "not a valid hostname: 1-63 chars of A-Z a-z 0-9 and "
                               "hyphen, no leading or trailing hyphen")
+    return value
+
+
+def _check_domain(value):
+    if not isinstance(value, str):
+        raise WriteError(400, "expected a string")
+    if value == "":
+        return ""                    # no override
+    if len(value) > 255 or not _DOMAIN_RE.match(value):
+        raise WriteError(400, "not a valid domain: dot-separated labels of A-Z "
+                              "a-z 0-9 and hyphen, 63 chars per label, 255 total")
     return value
 
 
@@ -342,7 +374,9 @@ def w_dns(value):
     there. A device with neither gets a 503 that says so, not a silent no-op.
     """
     value = _check_dns(value)
-    if value:
+    # As with the domain: an empty list is applied when we had set servers, so
+    # clearing the override really hands DNS back to DHCP.
+    if value or _custom("0-0-networking-dns-customdnsservers"):
         dev, idx = _dns_link()
         applied = None
         if hostcfg.resolved_available():
@@ -365,11 +399,50 @@ def w_dns(value):
     return value
 
 
+def w_domain(value):
+    """The resolver search domain. resolved has no D-Bus setter for the global
+    search domain either, so this is NetworkManager's dns-search on the profile
+    behind the link - the same round-trip as the DNS servers."""
+    value = _check_domain(value)
+    # An empty value is applied, not skipped: for a search domain "no override"
+    # is a well-defined state - remove ours and let DHCP supply one. (Hostname
+    # is the opposite case: there is no meaningful factory name to revert to, so
+    # clearing it stores the empty override and leaves the running name alone.)
+    if value or _custom("0-0-networking-domain-customdomain"):
+        dev, _idx = _dns_link()
+        if not nmcfg.available():
+            raise WriteError(503, "NetworkManager is not on the bus; no way to set "
+                                  "the search domain on this device")
+        try:
+            live, detail = nmcfg.set_search_domain(dev, value)
+        except nmcfg.NMError as e:
+            raise WriteError(503, f"NetworkManager refused the change on {dev}: {e}")
+        wdalog.write.info("search domain %s on %s%s",
+                          "cleared" if not value else "applied", dev,
+                          "" if live else f" ({detail})")
+    _store_write("0-0-networking-domain-customdomain", value)
+    return value
+
+
+def w_ipforwarding(value):
+    """0-0-networking-routing-ipforwarding-enabled. Unlike the other three this
+    one needs a grant the container does not have by default - see
+    providers/sysctl.py. Without the mount it fails loudly and changes nothing."""
+    if not isinstance(value, bool):
+        raise WriteError(400, "expected a boolean")
+    ok, detail = sysctl.set_ip_forwarding(value)
+    if not ok:
+        raise WriteError(503, detail)
+    wdalog.write.info("ip forwarding set to %s", value)
+    return value
+
+
 def reapply():
     """Push stored custom values back at start. resolved's SetLinkDNS is runtime
     state, so without this a container restart silently drops the configured
     servers while the parameter still claims them."""
     for pid, fn in (("0-0-networking-hostname-customname", w_hostname),
+                    ("0-0-networking-domain-customdomain", w_domain),
                     ("0-0-networking-dns-customdnsservers", w_dns)):
         value = _custom(pid)
         if not value:
@@ -397,6 +470,9 @@ PARAMS = {
         lambda: _custom("0-0-networking-hostname-customname"),
     "0-0-networking-dns-customdnsservers":
         lambda: _custom("0-0-networking-dns-customdnsservers"),
+    "0-0-networking-domain-customdomain":
+        lambda: _custom("0-0-networking-domain-customdomain"),
+    "0-0-networking-routing-ipforwarding-enabled": sysctl.ip_forwarding,
     "0-0-networking-domain-currentdomain": _domain,
     "0-0-networking-dns-utilizeddnsservers": _dns,
     "0-0-networking-routing-currentroutes":
@@ -427,4 +503,6 @@ def RESOLVE(pid):
 
 
 WRITES = {"0-0-networking-hostname-customname": w_hostname,
-          "0-0-networking-dns-customdnsservers": w_dns}
+          "0-0-networking-domain-customdomain": w_domain,
+          "0-0-networking-dns-customdnsservers": w_dns,
+          "0-0-networking-routing-ipforwarding-enabled": w_ipforwarding}
