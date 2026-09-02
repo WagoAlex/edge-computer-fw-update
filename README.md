@@ -12,7 +12,10 @@ a slot; it hands the bundle to the host `rauc.service` over the mounted D-Bus
 socket and stays unprivileged.
 
 Each topic below appears exactly once. Sections 5, 6 and 7 are independent: read
-the one you need.
+the one you need. For the same material as a single illustrated page - both
+update routes side by side and the bundle build as a numbered sequence - open
+[`docs/firmware-update-walkthrough.html`](docs/firmware-update-walkthrough.html)
+in a browser.
 
 1. [Pick a path](#1-pick-a-path)
 2. [Device prerequisites](#2-device-prerequisites)
@@ -248,6 +251,9 @@ failed one returns `{"code": "26", "domainSpecificStatusCode": "<n>", "detail":
 
 ### 6.3 The update state machine
 
+[`docs/firmware-update-walkthrough.html`](docs/firmware-update-walkthrough.html)
+draws this as a track with both routes beside it.
+
 ```
 Inactive(0) --activate--> Prepared(2) --getuploadids--> upload --start-->
 Started(3) --rauc install--> Unconfirmed(4) --finish--> Finished(8) --clear--> Inactive(0)
@@ -469,6 +475,9 @@ get one INFO line per 100 chunks. `WDA_LOG_LEVEL=DEBUG` turns them on.
 
 ## 7. Building your own RAUC bundle
 
+The same eight steps, laid out visually with the failure each one prevents:
+[`docs/firmware-update-walkthrough.html`](docs/firmware-update-walkthrough.html).
+
 There is no cross-build. A bundle is a capture of a running edge rootfs, so
 steps 1 to 7 run **on the device, as root, under `/docker`**. Roughly 25 minutes
 and about 3 GB of scratch. `build/make_edge_raucb.sh` is all of it in one
@@ -595,7 +604,9 @@ container/
 
 rauc-container/             older variant that mounts the bundle from the device
 bundles/                    build output, git-ignored
-docs/                       the illustrated update walkthrough
+docs/
+  firmware-update-walkthrough.html   both update routes and the bundle build as
+                                     one page, no build step, open it directly
 ```
 
 ## 9. Development and tests
