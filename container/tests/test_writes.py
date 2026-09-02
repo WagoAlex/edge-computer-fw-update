@@ -323,7 +323,14 @@ def test_only_the_intended_ids_are_writable():
         "0-0-networking-dns-customdnsservers",
         "0-0-networking-domain-customdomain",
         "0-0-networking-hostname-customname",
-        "0-0-networking-routing-ipforwarding-enabled"]
+        "0-0-networking-routing-ipforwarding-enabled",
+        # the pp_wds models: what the Device Sphere twin writes
+        "0-0-wds-heartbeatinterval",
+        "0-0-wds-monitoringinterval",
+        "0-0-wds-schedule-configuration",
+        "0-0-wdsbackup-enabled",
+        "0-0-wdsbackup-interval",
+        "0-0-wdsdeployment-applicationinstancepackage"]
 
 
 def test_no_ip_carrying_parameter_is_writable():

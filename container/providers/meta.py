@@ -38,6 +38,18 @@ def _infer(value):
     return {"dataType": _PY_TO_WDA.get(type(value), "string"), "dataRank": "scalar"}
 
 
+def register(mapping):
+    """Metadata for ids the FW31 cassette cannot cover.
+
+    The cassette is a dump of a real edge, so it has nothing for a namespace the
+    edge does not run - `0-0-wds*` comes from pp_wds, which ships only in the
+    arm64 ipk. A provider that serves such ids supplies their metadata here and
+    documents where it came from; wda_meta.json stays generated-only.
+    """
+    for pid, m in mapping.items():
+        PARAM_META.setdefault(pid, m)
+
+
 def describe(pid, value):
     """{"dataType","dataRank","path"} for a parameter id."""
     m = PARAM_META.get(pid)

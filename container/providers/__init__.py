@@ -49,9 +49,9 @@ def cached(ttl):
     return deco
 
 
-from . import firmwareupdate, ledstates, localusers, networking, preset, system  # noqa: E402
+from . import firmwareupdate, ledstates, localusers, networking, preset, system, wds  # noqa: E402
 
-_MODULES = (firmwareupdate, ledstates, localusers, networking, preset, system)
+_MODULES = (firmwareupdate, ledstates, localusers, networking, preset, system, wds)
 
 PARAMS = {}
 METHODS = {}
