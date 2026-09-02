@@ -14,3 +14,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 container/data/
+
+# Local agent context, not part of the published repo
+CLAUDE.md
+.claude/
+.serena/
