@@ -12,10 +12,10 @@ a slot; it hands the bundle to the host `rauc.service` over the mounted D-Bus
 socket and stays unprivileged.
 
 Each topic below appears exactly once. Sections 5, 6 and 7 are independent: read
-the one you need. For the same material as a single illustrated page - both
-update routes side by side and the bundle build as a numbered sequence - open
-[`docs/firmware-update-walkthrough.html`](docs/firmware-update-walkthrough.html)
-in a browser.
+the one you need. The same material as a single illustrated page, both update
+routes side by side and the bundle build as a numbered sequence, is at
+**https://wagoalex.github.io/edge-computer-fw-update/**
+([`docs/index.html`](docs/index.html)).
 
 1. [Pick a path](#1-pick-a-path)
 2. [Device prerequisites](#2-device-prerequisites)
@@ -251,7 +251,7 @@ failed one returns `{"code": "26", "domainSpecificStatusCode": "<n>", "detail":
 
 ### 6.3 The update state machine
 
-[`docs/firmware-update-walkthrough.html`](docs/firmware-update-walkthrough.html)
+The [walkthrough page](https://wagoalex.github.io/edge-computer-fw-update/)
 draws this as a track with both routes beside it.
 
 ```
@@ -476,7 +476,7 @@ get one INFO line per 100 chunks. `WDA_LOG_LEVEL=DEBUG` turns them on.
 ## 7. Building your own RAUC bundle
 
 The same eight steps, laid out visually with the failure each one prevents:
-[`docs/firmware-update-walkthrough.html`](docs/firmware-update-walkthrough.html).
+[the walkthrough page](https://wagoalex.github.io/edge-computer-fw-update/).
 
 There is no cross-build. A bundle is a capture of a running edge rootfs, so
 steps 1 to 7 run **on the device, as root, under `/docker`**. Roughly 25 minutes
@@ -605,8 +605,8 @@ container/
 rauc-container/             older variant that mounts the bundle from the device
 bundles/                    build output, git-ignored
 docs/
-  firmware-update-walkthrough.html   both update routes and the bundle build as
-                                     one page, no build step, open it directly
+  index.html                the illustrated walkthrough, published by GitHub
+                            Pages at wagoalex.github.io/edge-computer-fw-update/
 ```
 
 ## 9. Development and tests
