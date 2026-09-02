@@ -374,3 +374,18 @@ def test_reapply_pushes_stored_values_back(store, bus, link):
 def test_set_param_rejects_a_read_only_id():
     with pytest.raises(KeyError):
         providers.set_param("0-0-networking-hostname-currentname", "nope")
+
+
+def test_deployment_trigger_takes_the_object_the_server_actually_sends(tmp_path,
+                                                                      monkeypatch):
+    """A live WDS 1.3.1 target is an object, not a string:
+    {"startTime": null, "fileReference": "7176bcfd-..."} - captured off
+    192.168.2.199 on 2026-09-02. Rejecting it would drop a real deployment."""
+    from providers import wds
+    monkeypatch.setattr(wds, "STORE", str(tmp_path / "wds-model.json"))
+    target = {"startTime": None, "fileReference": "7176bcfd-e15"}
+    assert wds._deployment_trigger(target) == target
+    assert providers.param_value(
+        "0-0-wdsdeployment-applicationinstancepackage") == target
+    with pytest.raises(WriteError):
+        wds._deployment_trigger(42)

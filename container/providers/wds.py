@@ -104,11 +104,16 @@ def _deployment_trigger(value):
     installing an application instance package is the agent's job, and this
     build has no agent. A client reads back exactly what it asked for and the
     log says a deployment was requested, so nothing here can look applied."""
-    if not isinstance(value, str):
-        raise WriteError(400, "expected a string")
+    # The server sends an object, not a string: a live WDS 1.3.1 target reads
+    # {"startTime": null, "fileReference": "7176bcfd-…"}. Both shapes are taken
+    # and stored verbatim, because the agent needs the fileReference and we must
+    # not lose fields we do not yet understand.
+    if not isinstance(value, (str, dict)):
+        raise WriteError(400, "expected a string or an object")
     _write("0-0-wdsdeployment-applicationinstancepackage", value)
+    ref = value.get("fileReference") if isinstance(value, dict) else value
     wdalog.write.warning("deployment requested (%s) - recorded, NOT installed: "
-                         "no application agent on this device", value or "<cleared>")
+                         "no application agent on this device", ref or "<cleared>")
     return value
 
 
