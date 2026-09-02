@@ -367,6 +367,8 @@ Read-only. Every id comes from the FW31 cassette
 | `0-0-localusers` | account instance list, root is instance 1 | mounted `/etc/passwd` |
 | `0-0-localusers-<uid>-name` / `-ispasswordexpired` | per account | `/etc/passwd`, `/etc/shadow` if mounted |
 | `0-0-memorycard-isavailable` / `-iswriteprotected` / `-volumename` | SD/MMC | `/sys/block` |
+| `0-0-ledstates` | one instance, id 1 | see below |
+| `0-0-ledstates-1-name` / `-colors` / `-diagnosticinformation` | the RUN LED | `/sys/class/leds`, else systemd `SystemState` |
 
 Notes that change what you read:
 
@@ -382,6 +384,14 @@ Notes that change what you read:
   which looks right and is not.
 - Four parameters are writable, see [6.8](#68-writable-parameters). Every
   other `custom*` / `static*` id is still absent rather than stubbed.
+- **One LED, not five.** A PFC300 publishes SYS, RUN, IO and more because its
+  firmware drives them. On an x86 edge, PWR, HDD and BTR are wired to the power
+  rail, the SATA activity pin and the RTC battery: nothing in software reads
+  them. So `0-0-ledstates` carries a single instantiation, WDA's `RUN` LED,
+  backed by the device's running state. `0-0-ledstates-2-*` and up are absent,
+  not stubbed green. If this platform does expose a PWR node, point
+  `LED_PWR_SYSFS` at it (e.g. `/sys/class/leds/platform::power`) and it is used
+  in preference to the systemd fallback.
 
 ### 6.8 Writable parameters
 
@@ -458,8 +468,15 @@ Discover writability at `GET /wda/parameter-definitions/<id>`, which reports
 ### 6.9 Enums
 
 `GET /wda/parameter-definitions/<id>/enum`, for
-`0-0-firmwareupdate-status` and `0-0-firmwareupdate-errorcause`. Values are the
-ones a real WDA 1.5.2 device reports and are never renumbered.
+`0-0-firmwareupdate-status`, `0-0-firmwareupdate-errorcause` and
+`0-0-ledstates-1-colors`. Values are the ones a real WDA 1.5.2 device reports
+and are never renumbered.
+
+`LEDColor`, read off a real PFC300: 0 `LED_COLOR_RED`, 1 `LED_COLOR_GREEN`,
+2 `LED_COLOR_YELLOW`, 3 `LED_COLOR_BLUE`, 4 `LED_COLOR_CYAN`,
+5 `LED_COLOR_MAGENTA`, 6 `LED_COLOR_WHITE`, 7 `LED_COLOR_OFF`. `Colors` is an
+array: two entries mean the LED blinks between them, which is how WAGO encodes
+"working but not nominal" (a PFC300 RUN LED reads `[1, 7]`).
 
 | status | | errorcause | | `domainSpecificStatusCode` | |
 |---|---|---|---|---|---|

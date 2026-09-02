@@ -106,3 +106,19 @@ def probe():
             "networkmanager": "reachable" if nmcfg.available() else "absent",
             "dns_backend": "systemd-resolved" if ok_dns else
                            "NetworkManager" if nmcfg.available() else "none"}
+
+
+def systemd_state():
+    """org.freedesktop.systemd1.Manager.SystemState, or None if unreachable.
+
+    One of: initializing, starting, running, degraded, maintenance, stopping.
+    Used as the RUN-LED source: it is the closest thing an x86 edge has to the
+    "is the runtime healthy" signal a PFC's RUN LED carries.
+    """
+    ok, out = _busctl("get-property", "org.freedesktop.systemd1",
+                      "/org/freedesktop/systemd1",
+                      "org.freedesktop.systemd1.Manager", "SystemState")
+    if not ok:
+        return None
+    m = re.match(r'^s\s+"(.*)"$', out)
+    return m.group(1) if m else None
