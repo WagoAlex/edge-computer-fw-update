@@ -88,9 +88,21 @@ def set_link_dns(idx, servers):
     return _busctl("call", *RESOLVE1, "SetLinkDNS", "ia(iay)", *args)
 
 
+def resolved_available():
+    """Is systemd-resolved actually on this bus? The edge is not: resolv.conf is
+    a plain file and NetworkManager owns DNS, so SetLinkDNS would fail with a
+    name-not-provided error that says nothing useful to an operator."""
+    ok, _ = _busctl("get-property", *RESOLVE1, "DNS")
+    return ok
+
+
 def probe():
     """One line per backend, for the startup log: what can this container do?"""
+    from . import nmcfg
     hn = hostname()
     ok_dns, out = _busctl("get-property", *RESOLVE1, "DNS")
     return {"hostname1": hn if hn is not None else "unreachable",
-            "resolve1": "reachable" if ok_dns else out.splitlines()[0] if out else "unreachable"}
+            "resolve1": "reachable" if ok_dns else "absent",
+            "networkmanager": "reachable" if nmcfg.available() else "absent",
+            "dns_backend": "systemd-resolved" if ok_dns else
+                           "NetworkManager" if nmcfg.available() else "none"}

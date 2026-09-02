@@ -43,7 +43,7 @@ import struct
 import wdalog
 
 from . import NOTFOUND, WriteError, cached
-from . import hostcfg
+from . import hostcfg, nmcfg
 
 SYS = os.environ.get("SYSFS_NET", "/sys/class/net")
 PROC_ROUTE = os.environ.get("PROC_NET_ROUTE", "/proc/net/route")
@@ -334,12 +334,32 @@ def w_hostname(value):
 
 
 def w_dns(value):
+    """Apply DNS servers through whichever resolver this device actually runs.
+
+    systemd-resolved first, because SetLinkDNS is the narrower change; the edge
+    has no resolved (probed 2026-09-02: no such bus name, resolv.conf is a plain
+    file, NetworkManager 1.52.1 owns it), so NetworkManager is the real path
+    there. A device with neither gets a 503 that says so, not a silent no-op.
+    """
     value = _check_dns(value)
     if value:
         dev, idx = _dns_link()
-        ok, detail = hostcfg.set_link_dns(idx, value)
-        if not ok:
-            raise WriteError(503, f"systemd-resolved refused the change on {dev}: {detail}")
+        applied = None
+        if hostcfg.resolved_available():
+            ok, detail = hostcfg.set_link_dns(idx, value)
+            if not ok:
+                raise WriteError(503, f"systemd-resolved refused the change on {dev}: {detail}")
+            applied = "systemd-resolved"
+        elif nmcfg.available():
+            try:
+                live, detail = nmcfg.set_dns(dev, value)
+            except nmcfg.NMError as e:
+                raise WriteError(503, f"NetworkManager refused the change on {dev}: {e}")
+            applied = "NetworkManager" + ("" if live else f" ({detail})")
+        else:
+            raise WriteError(503, "no resolver backend on this device: neither "
+                                  "systemd-resolved nor NetworkManager is on the bus")
+        wdalog.write.info("DNS applied on %s via %s", dev, applied)
     _store_write("0-0-networking-dns-customdnsservers", value)
     _dns.cache_clear()                   # utilized* must not serve a stale read
     return value

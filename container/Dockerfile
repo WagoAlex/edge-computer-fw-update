@@ -3,7 +3,8 @@
 # The host rauc.service does the privileged slot write; this stays unprivileged.
 FROM debian:trixie-slim AS base
 RUN apt-get update \
- && apt-get install -y --no-install-recommends rauc dbus python3 openssl iproute2 \
+ && apt-get install -y --no-install-recommends rauc dbus python3 python3-dbus \
+    openssl iproute2 \
  && rm -rf /var/lib/apt/lists/*
 COPY entrypoint.sh /entrypoint.sh
 COPY api.py openapi.py presets.py wdalog.py /

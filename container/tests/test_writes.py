@@ -35,6 +35,8 @@ def bus(monkeypatch):
 @pytest.fixture
 def link(monkeypatch):
     monkeypatch.setattr(networking, "_dns_link", lambda: ("X1", 2))
+    # resolved present by default; the NetworkManager path has its own tests
+    monkeypatch.setattr(hostcfg, "resolved_available", lambda: True)
 
 
 # ---- validation: nothing reaches the bus -----------------------------------
@@ -119,6 +121,67 @@ def test_no_carrier_means_no_dns_write(store, bus, monkeypatch):
         networking.w_dns(["9.9.9.9"])
     assert e.value.status == 503
     assert bus == []
+
+
+# ---- resolver backend selection ---------------------------------------------
+# The edge has no systemd-resolved (probed 2026-09-02); NetworkManager owns DNS
+# there. Both paths have to work, and the absence of both has to be an error the
+# operator can read - never a silent no-op.
+
+def test_networkmanager_is_used_when_resolved_is_absent(store, monkeypatch):
+    monkeypatch.setattr(networking, "_dns_link", lambda: ("X1", 2))
+    monkeypatch.setattr(hostcfg, "resolved_available", lambda: False)
+    monkeypatch.setattr(hostcfg, "set_link_dns",
+                        lambda *a: pytest.fail("resolved must not be called"))
+    seen = {}
+    monkeypatch.setattr(networking.nmcfg, "available", lambda: True)
+    monkeypatch.setattr(networking.nmcfg, "set_dns",
+                        lambda dev, servers: (seen.update(dev=dev, servers=servers), (True, ""))[1])
+    networking.w_dns(["9.9.9.9"])
+    assert seen == {"dev": "X1", "servers": ["9.9.9.9"]}
+    assert json.load(open(store))["0-0-networking-dns-customdnsservers"] == ["9.9.9.9"]
+
+
+def test_no_resolver_backend_is_an_error_not_a_no_op(store, monkeypatch):
+    monkeypatch.setattr(networking, "_dns_link", lambda: ("X1", 2))
+    monkeypatch.setattr(hostcfg, "resolved_available", lambda: False)
+    monkeypatch.setattr(networking.nmcfg, "available", lambda: False)
+    with pytest.raises(WriteError) as e:
+        networking.w_dns(["9.9.9.9"])
+    assert e.value.status == 503
+    assert "neither" in e.value.detail
+    assert not os.path.exists(store)
+
+
+def test_networkmanager_failure_is_reported(store, monkeypatch):
+    monkeypatch.setattr(networking, "_dns_link", lambda: ("X1", 2))
+    monkeypatch.setattr(hostcfg, "resolved_available", lambda: False)
+    monkeypatch.setattr(networking.nmcfg, "available", lambda: True)
+
+    def boom(dev, servers):
+        raise networking.nmcfg.NMError("Not authorized")
+    monkeypatch.setattr(networking.nmcfg, "set_dns", boom)
+    with pytest.raises(WriteError) as e:
+        networking.w_dns(["9.9.9.9"])
+    assert e.value.status == 503 and "Not authorized" in e.value.detail
+    assert not os.path.exists(store)
+
+
+def test_nm_encodes_v4_as_u32_and_v6_as_bytes():
+    """NM's settings dict wants ipv4.dns as network-byte-order uint32 and
+    ipv6.dns as byte arrays. Getting this wrong writes a plausible-looking
+    profile that resolves nothing."""
+    from providers import nmcfg
+
+    class FakeDbus:                       # only what _encode touches
+        UInt32 = staticmethod(lambda v: ("u32", v))
+        Byte = staticmethod(lambda v: v)
+        Array = staticmethod(lambda v, signature=None: ("arr", list(v)))
+    v4, v6 = nmcfg._encode(FakeDbus, ["9.9.9.9", "2620:fe::fe"])
+    assert v4 == [("u32", 0x09090909)]
+    import ipaddress
+    assert v6 == [("arr", list(ipaddress.ip_address("2620:fe::fe").packed))]
+    assert len(v6[0][1]) == 16
 
 
 # ---- registry and semantics -------------------------------------------------
