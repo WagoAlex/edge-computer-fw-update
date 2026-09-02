@@ -1,7 +1,7 @@
 # Firmware bundles are large (~1.3 GB) build artifacts - never commit them.
 *.raucb
 *.wup
-bundles/wup-stage/
+bundles/
 container/bundle.raucb
 
 # Local docker image saves
