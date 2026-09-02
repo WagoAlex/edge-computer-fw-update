@@ -831,6 +831,7 @@ unzip -l bundles/$NAME.wup</pre>
               <tr><th>Check</th><th>Why</th></tr>
             </thead>
             <tbody>
+              <tr><td class="name">docker compose -f docker-compose.api.yml up -d</td><td>Starts the API itself. Use <code>docker-compose.server.yml</code> for the image that carries a bundle</td></tr>
               <tr><td class="name">firewall-cmd --add-port=443/tcp</td><td>Host network mode is not behind Docker's port publishing, so firewalld applies</td></tr>
               <tr><td class="name">/run/dbus/system_bus_socket</td><td>The only way the container reaches the host RAUC service</td></tr>
               <tr><td class="name">/docker/rauc-stage</td><td>Must be the same path inside and outside; the host RAUC opens the file by that path</td></tr>
@@ -850,7 +851,7 @@ unzip -l bundles/$NAME.wup</pre>
             </thead>
             <tbody>
               <tr><td class="name">bundle-latest</td><td class="num">2.8 GB</td><td>API plus the embedded bundle. Both routes work out of the box</td></tr>
-              <tr><td class="name">api-latest</td><td class="num">238 MB</td><td>API only, built with <code>--target base</code>. Route B, or mount a bundle at <code>BUNDLE</code></td></tr>
+              <tr><td class="name">api-latest</td><td class="num">238 MB</td><td>API only, on Docker Hub since 2026-09-02. Route B, or mount a bundle at <code>BUNDLE</code></td></tr>
               <tr><td class="name">bundle-V040100_IX05</td><td class="num">2.79 GB</td><td>Pinned firmware revision of <code>bundle-latest</code></td></tr>
               <tr><td class="name">rauc</td><td class="num">168 MB</td><td>One-shot installer, no REST surface</td></tr>
             </tbody>
