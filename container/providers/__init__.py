@@ -3,8 +3,13 @@
 Each provider module exports any of:
   PARAMS  : {param-id: () -> value}          fixed IDs
   RESOLVE : (param-id) -> value | NOTFOUND   dynamic IDs (e.g. localusers-<uid>)
+  WRITES  : {param-id: (value) -> effective} writable IDs; raises WriteError
   METHODS : {method-id: (inargs) -> (outArgs|None, dsc|None, detail)}
   ENUMS   : {param-id: {int: name}}          served at /parameter-definitions/../enum
+
+A parameter is writable if and only if it is in WRITES; that same set is what
+`writeable` reports on a parameter definition, so a client cannot be told one
+thing and refused another.
 
 ponytail: a dict merge, not a plugin framework. Providers are imported explicitly
 below - a directory scan would buy nothing and hide import errors.
@@ -13,6 +18,17 @@ import functools
 import time
 
 NOTFOUND = object()
+
+
+class WriteError(Exception):
+    """A write that could not be applied. `status` is the HTTP status the WDA
+    spec wants for that reason: 400 invalid value, 503 backend refused/absent,
+    500 applied but not persisted."""
+
+    def __init__(self, status, detail):
+        super().__init__(detail)
+        self.status = status
+        self.detail = detail
 
 
 def cached(ttl):
@@ -40,10 +56,12 @@ _MODULES = (firmwareupdate, localusers, networking, preset, system)
 PARAMS = {}
 METHODS = {}
 ENUMS = {}
+WRITES = {}
 for _m in _MODULES:
     PARAMS.update(getattr(_m, "PARAMS", {}))
     METHODS.update(getattr(_m, "METHODS", {}))
     ENUMS.update(getattr(_m, "ENUMS", {}))
+    WRITES.update(getattr(_m, "WRITES", {}))
 _RESOLVERS = [_m.RESOLVE for _m in _MODULES if hasattr(_m, "RESOLVE")]
 
 
@@ -57,3 +75,15 @@ def param_value(pid):
         if v is not NOTFOUND:
             return v
     return None
+
+
+def writable(pid):
+    return pid in WRITES
+
+
+def set_param(pid, value):
+    """Apply a value. Returns the EFFECTIVE value - a provider may normalise
+    what it was given, and WDA distinguishes that case (200 with the effective
+    value) from a verbatim write (204). Raises WriteError; KeyError if the id is
+    not writable, which the transport turns into a 404 like any unknown id."""
+    return WRITES[pid](value)

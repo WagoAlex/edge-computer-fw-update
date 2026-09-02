@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
-"""0-0-networking-* : read-only projection of the live network state.
+"""0-0-networking-* : live network state, plus the writable hostname/DNS twins.
 
-Backends are the kernel's own views - /sys/class/net, /proc/net/route,
+Reads are the kernel's own views - /sys/class/net, /proc/net/route,
 /etc/resolv.conf - so there is no NetworkManager-vs-networkd variance and no
-subprocess per parameter. Everything here is `current*`/read-only; the writable
-`custom*`/`static*` twins are Phase 3.
+subprocess per parameter.
+
+Writes (Phase 3, slice 1) cover exactly two ids, the two that cannot cut the
+connection they arrive on:
+
+    0-0-networking-hostname-customname     -> hostname1.SetStaticHostname
+    0-0-networking-dns-customdnsservers    -> resolve1.SetLinkDNS
+
+Both go through the system D-Bus socket (providers/hostcfg.py), so the container
+stays unprivileged. `custom*` is the operator's override and is stored here;
+`current*`/`utilized*` keep reading the live system and only change once the
+system agrees - on a real CC100 `customname` is "" while `currentname` is
+`CC100-592E6C`, and this build must not fabricate that relationship either way.
+
+NOT writable here, deliberately: anything carrying an IP address (bridge
+addresses, gateways, static routes). That is the one class of change that can
+strand the device, and it is out of scope by standing rule.
 
 CAVEAT (deploy shape): a container has its own network namespace, so X1/X2 are
 only visible with `network_mode: host`. Without it these read as absent
@@ -18,16 +33,26 @@ is the number in it - X11 is `ethernetports-11`, not "the third one found".
 Addon-card ports (LAN_A/LAN_B in the udev rules) have no number, so they get no
 instance until WAGO's numbering for them is known - they are not renumbered here.
 """
+import ipaddress
+import json
 import os
 import re
 import socket
 import struct
 
-from . import NOTFOUND, cached
+import wdalog
+
+from . import NOTFOUND, WriteError, cached
+from . import hostcfg
 
 SYS = os.environ.get("SYSFS_NET", "/sys/class/net")
 PROC_ROUTE = os.environ.get("PROC_NET_ROUTE", "/proc/net/route")
 RESOLV_CONF = os.environ.get("RESOLV_CONF", "/etc/resolv.conf")
+# Where custom* values live. Same volume as the presets, so they survive a
+# redeploy - resolved's SetLinkDNS is runtime-only, so this file is what makes
+# a custom value behave like configuration rather than a one-shot command.
+CUSTOM_STORE = os.environ.get("NETWORK_CUSTOM_STORE", "/app/data/network-custom.json")
+MAX_DNS_SERVERS = 8
 # Escape hatch for a box whose udev rules did not run (or a non-WAGO test host):
 # PORT_MAP="X1=enp1s0,X2=enp2s0" forces the mapping. Empty = discover.
 PORT_MAP = os.environ.get("PORT_MAP", "")
@@ -192,6 +217,12 @@ def _routes():
 # ---- hostname / domain / dns ----------------------------------------------
 
 def _hostname():
+    # hostnamed first: with network_mode host the container's UTS namespace is
+    # seeded from the host at start and then frozen, so socket.gethostname()
+    # would keep reporting the old name after a successful write.
+    live = hostcfg.hostname()
+    if live:
+        return live.split(".", 1)[0]
     return socket.gethostname().split(".", 1)[0]
 
 
@@ -209,6 +240,127 @@ def _dns():
     return re.findall(r"^\s*nameserver\s+(\S+)", text, re.M)
 
 
+# ---- custom* : the writable twins -----------------------------------------
+
+_DEFAULTS = {"0-0-networking-hostname-customname": "",
+             "0-0-networking-dns-customdnsservers": []}
+# RFC 1123 label - exactly the rule the Device Sphere twin states for Custom Name
+_HOSTNAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+
+
+def _store_read():
+    try:
+        with open(CUSTOM_STORE) as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _store_write(pid, value):
+    data = _store_read()
+    data[pid] = value
+    try:
+        os.makedirs(os.path.dirname(CUSTOM_STORE), exist_ok=True)
+        tmp = CUSTOM_STORE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, CUSTOM_STORE)     # never a half-written store
+    except OSError as e:
+        raise WriteError(500, f"value applied but not persisted: {e}")
+
+
+def _custom(pid):
+    return _store_read().get(pid, _DEFAULTS[pid])
+
+
+def _check_hostname(value):
+    if not isinstance(value, str):
+        raise WriteError(400, "expected a string")
+    if value == "":
+        return ""                    # "" means no override - allowed, applies nothing
+    if len(value) > 63 or not _HOSTNAME_RE.match(value):
+        raise WriteError(400, "not a valid hostname: 1-63 chars of A-Z a-z 0-9 and "
+                              "hyphen, no leading or trailing hyphen")
+    return value
+
+
+def _check_dns(value):
+    if not isinstance(value, list):
+        raise WriteError(400, "expected an array of IP addresses")
+    if len(value) > MAX_DNS_SERVERS:
+        raise WriteError(400, f"at most {MAX_DNS_SERVERS} DNS servers")
+    out = []
+    for item in value:
+        if not isinstance(item, str):
+            raise WriteError(400, "DNS servers must be strings")
+        try:
+            ipaddress.ip_address(item)
+        except ValueError:
+            raise WriteError(400, f"not an IP address: {item}")
+        if item in out:
+            raise WriteError(400, f"duplicate DNS server: {item}")
+        out.append(item)
+    return out
+
+
+def _dns_link():
+    """The link resolved gets the servers on: the port carrying the default
+    route, else the first port with carrier. Returns (ifname, ifindex)."""
+    devs = [dev for _i, (_name, dev) in sorted(ports().items()) if dev]
+    default = next((r["interface"] for r in _routes() if r["address"] == "0.0.0.0/0"), None)
+    if default:
+        # _routes() reports the WAGO name; map it back to the kernel device
+        for i, (name, dev) in ports().items():
+            if name == default and dev:
+                devs.insert(0, dev)
+                break
+    for dev in devs:
+        if _read(SYS, dev, "carrier") == "1":
+            idx = hostcfg.ifindex(dev)
+            if idx:
+                return dev, idx
+    raise WriteError(503, "no link with carrier to apply DNS servers to")
+
+
+def w_hostname(value):
+    value = _check_hostname(value)
+    if value:
+        ok, detail = hostcfg.set_static_hostname(value)
+        if not ok:
+            raise WriteError(503, f"hostnamed refused the change: {detail}")
+    _store_write("0-0-networking-hostname-customname", value)
+    return value
+
+
+def w_dns(value):
+    value = _check_dns(value)
+    if value:
+        dev, idx = _dns_link()
+        ok, detail = hostcfg.set_link_dns(idx, value)
+        if not ok:
+            raise WriteError(503, f"systemd-resolved refused the change on {dev}: {detail}")
+    _store_write("0-0-networking-dns-customdnsservers", value)
+    _dns.cache_clear()                   # utilized* must not serve a stale read
+    return value
+
+
+def reapply():
+    """Push stored custom values back at start. resolved's SetLinkDNS is runtime
+    state, so without this a container restart silently drops the configured
+    servers while the parameter still claims them."""
+    for pid, fn in (("0-0-networking-hostname-customname", w_hostname),
+                    ("0-0-networking-dns-customdnsservers", w_dns)):
+        value = _custom(pid)
+        if not value:
+            continue
+        try:
+            fn(value)
+            wdalog.write.info("reapplied %s", pid)
+        except WriteError as e:
+            wdalog.write.warning("could not reapply %s: %s", pid, e.detail)
+
+
 # ---- registry -------------------------------------------------------------
 # Ports and bridges are resolved, not enumerated at import: an expansion module
 # adds X11/X12 and a bridge can be created at runtime, and neither should need a
@@ -221,6 +373,10 @@ BRIDGE_ATTRS = ("label", "name", "macaddress", "connectedethernetports",
 
 PARAMS = {
     "0-0-networking-hostname-currentname": _hostname,
+    "0-0-networking-hostname-customname":
+        lambda: _custom("0-0-networking-hostname-customname"),
+    "0-0-networking-dns-customdnsservers":
+        lambda: _custom("0-0-networking-dns-customdnsservers"),
     "0-0-networking-domain-currentdomain": _domain,
     "0-0-networking-dns-utilizeddnsservers": _dns,
     "0-0-networking-routing-currentroutes":
@@ -248,3 +404,7 @@ def RESOLVE(pid):
     if not 1 <= idx <= len(routes) or attr not in routes[0]:
         return NOTFOUND
     return routes[idx - 1][attr]
+
+
+WRITES = {"0-0-networking-hostname-customname": w_hostname,
+          "0-0-networking-dns-customdnsservers": w_dns}

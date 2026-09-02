@@ -117,7 +117,18 @@ services:
                                    # number and get no instance.
 
       # -- local users ---------------------------------------------------------
-      PASSWD_FILE: /host/etc/passwd     # default /etc/passwd, which inside a
+      PASSWD_FILE: /host/etc/passwd
+
+      # -- writable parameters (Phase 3, slice 1) ----------------------------
+      NETWORK_CUSTOM_STORE: /app/data/network-custom.json
+                                   # default. Where 0-0-networking-hostname-
+                                   # customname and -dns-customdnsservers are
+                                   # stored. Needs the /app/data mount to
+                                   # survive a redeploy; resolved's SetLinkDNS
+                                   # is runtime state, so this file is what
+                                   # gets re-applied at container start.
+      DBUS_TIMEOUT: 10             # default, seconds. busctl calls to
+                                   # hostname1/resolve1 for those writes.     # default /etc/passwd, which inside a
                                    # container is the CONTAINER's - useless.
                                    # Point at the mounted host file.
       SHADOW_FILE: /etc/shadow     # default. Deliberately NOT mounted from the

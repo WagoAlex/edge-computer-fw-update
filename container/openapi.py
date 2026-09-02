@@ -44,10 +44,11 @@ def document(order_number, firmware_version, wda_version):
                 "A STRICT SUBSET of WAGO's WDA REST-API. Envelopes, parameter ids "
                 "and method semantics match WDA 1.5.2, but only the paths below "
                 "are implemented: there are no discovery collections "
-                "(/wda/parameters, /wda/methods, /wda/*-definitions, "
-                "/wda/features, /wda/monitoring-lists, /wda/devices), no OAuth2 "
-                "or token auth, and no PATCH of parameters - every parameter here "
-                "is read-only apart from the firmware-update state machine.\n\n"
+                "(/wda/parameters GET, /wda/methods, /wda/parameter-definitions "
+                "listing, /wda/features, /wda/monitoring-lists, /wda/devices) and "
+                "no OAuth2 or token auth. PATCH is implemented for the writable "
+                "parameters listed under x-writable-parameters only; every other "
+                "parameter is read-only.\n\n"
                 "The backend is stock RAUC over the host D-Bus plus the kernel's "
                 "own /sys and /proc views, not WAGO's wdx provider. Bundles are "
                 "self-signed and are NOT accepted by a genuine PFC/TP600 WDA.\n\n"
@@ -67,6 +68,20 @@ def document(order_number, firmware_version, wda_version):
                                     "properties": {"version": {"type": "string"}}},
                         "links": {"type": "object"},
                         "meta": {"type": "object"}},
+                    "required": ["data"]},
+                "parameter_write_object": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string", "enum": sorted(providers.WRITES)},
+                        "type": {"const": "parameters"},
+                        "attributes": {"type": "object",
+                                       "properties": {"value": {}},
+                                       "required": ["value"]}},
+                    "required": ["id", "attributes"]},
+                "parameter_write": {
+                    "type": "object",
+                    "properties": {"data": {
+                        "$ref": "#/components/schemas/parameter_write_object"}},
                     "required": ["data"]},
                 "errors": {
                     "type": "object",
@@ -93,6 +108,51 @@ def document(order_number, firmware_version, wda_version):
                                     "0-0-localusers-<uid>-*."}],
                 "get": {"operationId": "getParameter",
                         "summary": "Read one parameter",
+                        "responses": {"200": _OK, "401": _ERR, "404": _ERR}},
+                "patch": {
+                    "operationId": "setParameter",
+                    "summary": "Set one parameter value",
+                    "description":
+                        "Only the ids in x-writable-parameters accept a write; "
+                        "every other id answers 404, writable or not being a "
+                        "property a client reads from the parameter definition.",
+                    "requestBody": {"required": True, "content": {
+                        "application/vnd.api+json": {"schema": {
+                            "$ref": "#/components/schemas/parameter_write"}}}},
+                    "responses": {
+                        "204": {"description": "Applied, value stored as sent."},
+                        "200": {"description":
+                                "Applied, but the value was modified. The body "
+                                "carries the effective value.",
+                                "content": {"application/vnd.api+json": {"schema": {
+                                    "$ref": "#/components/schemas/document"}}}},
+                        "400": _ERR, "401": _ERR, "404": _ERR, "415": _ERR,
+                        "500": _ERR, "503": _ERR}}},
+            "/wda/parameters": {
+                "patch": {
+                    "operationId": "setParameters",
+                    "summary": "Set several parameter values",
+                    "description": "data is an array of the same resource objects. "
+                                   "Applied in order and not atomic: the first "
+                                   "failure stops the batch and is reported.",
+                    "requestBody": {"required": True, "content": {
+                        "application/vnd.api+json": {"schema": {"type": "object",
+                            "properties": {"data": {"type": "array", "items": {
+                                "$ref": "#/components/schemas/parameter_write_object"}}},
+                            "required": ["data"]}}}},
+                    "responses": {
+                        "204": {"description": "Applied, no value modified."},
+                        "200": {"description": "Applied; body lists the modified ones.",
+                                "content": {"application/vnd.api+json": {"schema": {
+                                    "$ref": "#/components/schemas/document"}}}},
+                        "400": _ERR, "401": _ERR, "404": _ERR, "415": _ERR,
+                        "500": _ERR, "503": _ERR}}},
+            "/wda/parameter-definitions/{parameter_definition_id}": {
+                "parameters": [{"name": "parameter_definition_id", "in": "path",
+                                "required": True,
+                                "schema": {"type": "string", "enum": sorted(params)}}],
+                "get": {"operationId": "getParameterDefinition",
+                        "summary": "Type metadata and writability of a parameter",
                         "responses": {"200": _OK, "401": _ERR, "404": _ERR}}},
             "/wda/parameter-definitions/{parameter_definition_id}/enum": {
                 "parameters": [{"name": "parameter_definition_id", "in": "path",
@@ -146,6 +206,7 @@ def document(order_number, firmware_version, wda_version):
                         "status": {"const": "ok"}}}}}}}}},
         },
         "x-parameter-metadata": params,
+        "x-writable-parameters": sorted(providers.WRITES),
         "x-firmware-update-enums": {
             "status": fw.STATUS_NAMES, "errorcause": fw.ERROR_CAUSES},
     }

@@ -47,3 +47,4 @@ def setup():
 http = logging.getLogger("wda.http")      # one line per request
 method = logging.getLogger("wda.method")  # one line per method invocation
 update = logging.getLogger("wda.update")  # firmware-update state transitions
+write = logging.getLogger("wda.write")    # one line per parameter write attempt

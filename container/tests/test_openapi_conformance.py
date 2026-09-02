@@ -79,7 +79,10 @@ def test_spec_admits_it_is_a_subset():
     desc = d["info"]["description"]
     assert "STRICT SUBSET" in desc
     assert "self-signed" in desc          # must not imply real-WDA acceptance
-    assert "/wda/parameters," in desc     # names the discovery paths we lack
+    assert "/wda/parameters GET" in desc  # names the discovery paths we lack
+    # PATCH exists now, but only for the ids the registry actually accepts
+    assert "x-writable-parameters" in desc
+    assert d["x-writable-parameters"] == sorted(providers.WRITES)
 
 
 def test_health_is_documented_as_unauthenticated():

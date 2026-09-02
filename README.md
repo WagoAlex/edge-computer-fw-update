@@ -337,7 +337,7 @@ already: `PLC_IP=192.168.2.17 PLC_USERNAME=admin PLC_PASSWORD=... WUP_PATH=...`.
 | `0-0-firmwareupdate-cancel` | none | none, errorcause 101 |
 | `0-0-firmwareupdate-settimeout` | `Timeout` (seconds) | none |
 | `0-0-firmwareupdate-getlastlogentries` | `EntryCount` (default 25) | `Entries` (list) |
-| `0-0-presets-list` / `-get` / `-save` / `-delete` | see [6.9](#69-presets) | |
+| `0-0-presets-list` / `-get` / `-save` / `-delete` | see [6.10](#610-presets) | |
 | `0-0-presets-apply` | - | not implemented, returns a WDA error |
 
 ### 6.7 Parameters
@@ -347,7 +347,7 @@ Read-only. Every id comes from the FW31 cassette
 
 | Parameter | Value | Backend |
 |---|---|---|
-| `0-0-firmwareupdate-status` | 0-9, see [6.8](#68-enums) | in-memory state |
+| `0-0-firmwareupdate-status` | 0-9, see [6.9](#69-enums) | in-memory state |
 | `0-0-firmwareupdate-progress` | 0-100 | `rauc install` output |
 | `0-0-firmwareupdate-errorcause` | numbered cause | state machine |
 | `0-0-firmwareupdate-debuginfo` | last RAUC output lines | state machine |
@@ -380,9 +380,64 @@ Notes that change what you read:
 - An absent backend reports absent (`false`, `""`, `[]`), never a plausible
   guess. Without `/etc/passwd` mounted you get the container's own accounts,
   which looks right and is not.
-- Writable `custom*` and `static*` parameters are Phase 3 and are not stubbed.
+- Two parameters are writable, see [6.8](#68-writing-hostname-and-dns). Every
+  other `custom*` / `static*` id is still absent rather than stubbed.
 
-### 6.8 Enums
+### 6.8 Writing hostname and DNS
+
+Two parameters accept a write. They are the two that cannot cut the connection
+the request arrived on, which is why they are the first slice.
+
+| Parameter | Backend | Applies to |
+|---|---|---|
+| `0-0-networking-hostname-customname` | `org.freedesktop.hostname1.SetStaticHostname` | `/etc/hostname` on the host |
+| `0-0-networking-dns-customdnsservers` | `org.freedesktop.resolve1.Manager.SetLinkDNS` | the link carrying the default route, else the first with carrier |
+
+Both go over the system D-Bus socket the container already mounts, so nothing
+gains a privilege: systemd does the privileged part and polkit decides.
+
+```bash
+curl -sk -u admin:$WDA_PASSWORD -X PATCH \
+  -H 'Content-Type: application/vnd.api+json' \
+  -d '{"data":{"type":"parameters","attributes":{"value":"edge-lab-01"}}}' \
+  https://192.168.2.17/wda/parameters/0-0-networking-hostname-customname
+
+curl -sk -u admin:$WDA_PASSWORD -X PATCH \
+  -H 'Content-Type: application/vnd.api+json' \
+  -d '{"data":{"type":"parameters","attributes":{"value":["9.9.9.9","2620:fe::fe"]}}}' \
+  https://192.168.2.17/wda/parameters/0-0-networking-dns-customdnsservers
+```
+
+Status codes follow the real device (read off a CC100, WDA 1.5.2):
+
+| Code | Meaning |
+|---|---|
+| `204` | Applied, value stored as sent |
+| `200` | Applied, but the value was normalised; the body carries the effective one |
+| `400` | Invalid value. Nothing was touched |
+| `404` | Unknown id, or the id is read-only |
+| `415` | Content type is not `application/vnd.api+json` |
+| `503` | The backend refused or is absent. Nothing was stored |
+
+`PATCH /wda/parameters` takes a `data` array for several at once. It is applied
+in order and is not atomic: the first failure stops the batch and is reported.
+
+Three rules the implementation keeps:
+
+- **`custom*` is not `current*`.** Writing the custom value stores the override
+  and asks the system to apply it; `currentname` keeps reading the live system.
+  An empty custom value means "no override" and never renames the running host.
+- **Validate, then apply once.** A rejected hostname or a malformed address
+  never reaches D-Bus, and nothing is persisted.
+- **Nothing that carries an IP address is writable** - bridge addresses,
+  gateways, static routes. A regression test enforces it.
+
+Custom values live in `/app/data/network-custom.json` and are pushed back at
+container start, because `SetLinkDNS` is runtime state that a reboot drops.
+Discover writability at `GET /wda/parameter-definitions/<id>`, which reports
+`writeable` and `userSetting` from the same registry the write path dispatches on.
+
+### 6.9 Enums
 
 `GET /wda/parameter-definitions/<id>/enum`, for
 `0-0-firmwareupdate-status` and `0-0-firmwareupdate-errorcause`. Values are the
@@ -404,7 +459,7 @@ ones a real WDA 1.5.2 device reports and are never renumbered.
 This build reports 101, 200 (`signature` seen in the RAUC output) and 600
 (anything else). The rest are served for enum compatibility.
 
-### 6.9 Presets
+### 6.10 Presets
 
 A preset is a named network-configuration fragment stored as WDA parameters:
 `{"parameters": {param-id: value}}`. Predefined ones ship in the image; custom
@@ -426,7 +481,7 @@ parameter id, so a preset can only hold something the device could apply.
 means writing `custom*` parameters, which is Phase 3. `presets` is also the one
 namespace here with no cassette entry behind it, named deliberately.
 
-### 6.10 The generated spec
+### 6.11 The generated spec
 
 ```bash
 curl -sk $A "https://$IP/openapi/wda.openapi.json" | jq .
@@ -450,7 +505,7 @@ docker run --rm -p 8080:8080 -e SWAGGER_JSON=/spec/wda.json -v /tmp:/spec swagge
 "Try it out" will not execute: the API sends no CORS headers and the certificate
 is self-signed. Read there, call with `curl`.
 
-### 6.11 Logs
+### 6.12 Logs
 
 Everything goes to stdout with an ISO 8601 timestamp, so `docker logs -f` is the
 audit trail.
@@ -642,7 +697,8 @@ with slot B written and both slots reporting boot status good.
 
 - **Not real WDA.** Same URLs, JSON and enums for drop-in tooling, but no
   OAuth2/PAM, no full parameter tree, no `wdx` provider: the update state machine
-  plus the read-only projections in [6.7](#67-parameters).
+  plus the read-only projections in [6.7](#67-parameters) and the two writable
+  ids in [6.8](#68-writing-hostname-and-dns).
 - **Auth is HTTP Basic over self-signed TLS**, the PFC/CC posture. For the real
   stack, front it with the `wago-wda:x86` container (lighttpd + authd) from the
   WAGO SDK rather than growing `api.py`.
@@ -651,8 +707,10 @@ with slot B written and both slots reporting boot status good.
 - **The API never reboots the device.** `rauc install` marks the inactive slot
   for the next boot; the device keeps running the current slot until it
   restarts, including an unplanned restart.
-- **Writes are Phase 3.** `custom*` and `static*` parameters and
-  `0-0-presets-apply` are not implemented and are not stubbed.
+- **Writes are one slice deep.** Hostname and DNS are writable
+  ([6.8](#68-writing-hostname-and-dns)); every other `custom*` / `static*`
+  parameter and `0-0-presets-apply` are not implemented and not stubbed.
+  Nothing that sets an IP address is writable, by standing rule.
 
 See the sibling `wago-plc-mcp-server` repo for the reverse-engineered WDA
 mechanism and the paramd/authd x86 build this API stands in for.

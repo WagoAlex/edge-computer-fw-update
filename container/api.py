@@ -172,6 +172,21 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"status": "ok"}, "application/json")
         if path.startswith("/wda/parameters/"):
             return self._param(path[len("/wda/parameters/"):])
+        if path.startswith("/wda/parameter-definitions/") and not path.endswith("/enum"):
+            # How a client discovers what it may write. `writeable` comes from
+            # the same WRITES registry the PATCH handler dispatches on, so the
+            # two can never disagree.
+            pid = path[len("/wda/parameter-definitions/"):]
+            v = providers.param_value(pid)
+            if v is None:
+                return self._404(pid)
+            attrs = meta.describe(pid, v)
+            attrs["writeable"] = providers.writable(pid)
+            attrs["userSetting"] = attrs["writeable"]
+            link = f"/wda/parameter-definitions/{pid}"
+            return self._send(200, self._doc(
+                {"id": pid, "type": "parameter-definitions", "attributes": attrs,
+                 "links": {"self": link}}, link))
         if path.startswith("/wda/parameter-definitions/") and path.endswith("/enum"):
             pid = path[len("/wda/parameter-definitions/"):-len("/enum")]
             table = providers.ENUMS.get(pid)
@@ -223,11 +238,102 @@ class H(BaseHTTPRequestHandler):
         self._send(201, self._doc({"type": "runs", "attributes": {
             "outArgs": outargs or {}, "executionStatus": "done"}}, link))
 
+    # ---- parameter writes (Phase 3) ---------------------------------------
+    # Contract read off a live CC100 (genuine WDA 1.5.2) on 2026-09-02, not
+    # invented: PATCH /wda/parameters/{id} with {"data":{"id","type","attributes"
+    # :{"value"}}}, 204 applied verbatim, 200 applied with a modified value in
+    # the body, 400 bad value, 404 unknown or read-only, 415 wrong content type.
+    # 202 (deferred, "the change would prevent a response") is WAGO's code for a
+    # write that drops the connection it arrived on - nothing writable here can
+    # do that, so it is not emitted; the branch structure leaves room for it.
+
+    def _write_one(self, res):
+        """Apply one JSON:API parameter resource. (status, effective|detail)."""
+        if not isinstance(res, dict):
+            return 400, "each data entry must be an object"
+        pid = res.get("id")
+        attrs = res.get("attributes")
+        if not isinstance(pid, str) or not isinstance(attrs, dict) or "value" not in attrs:
+            return 400, "data.id and data.attributes.value are required"
+        if not providers.writable(pid):
+            # 404 for read-only too: a client learns writability from the
+            # definition, and a value that cannot be written has no PATCH
+            # resource to address.
+            return 404, pid
+        try:
+            effective = providers.set_param(pid, attrs["value"])
+        except providers.WriteError as e:
+            wdalog.write.warning("%s by %s REJECTED %s: %s",
+                                 pid, self._user(), e.status, e.detail)
+            return e.status, e.detail
+        modified = effective != attrs["value"]
+        wdalog.write.info("%s by %s applied%s", pid, self._user(),
+                          " (value normalised)" if modified else "")
+        return (200 if modified else 204), effective
+
+    def _param_doc(self, pid):
+        v = providers.param_value(pid)
+        link = f"/wda/parameters/{pid}"
+        attrs = meta.describe(pid, v)
+        attrs["value"] = v
+        return {"id": pid, "type": "parameters", "attributes": attrs,
+                "links": {"self": link}}
+
+    def _patch_parameters(self, path, body):
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip()
+        if ctype and ctype != JSONAPI:
+            return self._send(415, {"errors": [{"status": "415",
+                                                "detail": f"expected {JSONAPI}"}]})
+        try:
+            data = json.loads(body or b"{}").get("data")
+        except ValueError:
+            return self._send(400, {"errors": [{"status": "400",
+                                                "detail": "body is not JSON"}]})
+        bulk = path == "/wda/parameters"
+        if bulk:
+            if not isinstance(data, list):
+                return self._send(400, {"errors": [{"status": "400",
+                                                    "detail": "data must be an array"}]})
+            resources = data
+        else:
+            pid = path[len("/wda/parameters/"):]
+            if not isinstance(data, dict):
+                return self._send(400, {"errors": [{"status": "400",
+                                                    "detail": "data must be an object"}]})
+            data.setdefault("id", pid)
+            if data["id"] != pid:
+                return self._send(400, {"errors": [{"status": "400",
+                                                    "detail": "data.id does not match the URL"}]})
+            resources = [data]
+        # Validate-then-apply is per resource, so a bulk write is not atomic;
+        # WDA is not either - it answers 200 with only the modified members.
+        modified, worst, detail = [], 204, None
+        for res in resources:
+            status, result = self._write_one(res)
+            if status >= 400:
+                worst, detail = status, result
+                break
+            if status == 200:
+                modified.append(self._param_doc(res["id"]))
+        if worst >= 400:
+            msg = f"parameter not writable: {detail}" if worst == 404 else detail
+            return self._send(worst, {"errors": [{"status": str(worst), "detail": msg}]})
+        if not modified:
+            return self._send(204, None)
+        payload = modified if bulk else modified[0]
+        return self._send(200, {"data": payload, "jsonapi": {"version": JSONAPI_VERSION},
+                                "links": {"self": path},
+                                "meta": {"version": WDA_VERSION,
+                                         "doc": "/openapi/wda.openapi.json"}})
+
     def do_PATCH(self):
         self._t0 = time.monotonic()
         if not self._authed():
             return
         path = self.path.split("?", 1)[0].rstrip("/")
+        if path == "/wda/parameters" or path.startswith("/wda/parameters/"):
+            n = int(self.headers.get("Content-Length", 0))
+            return self._patch_parameters(path, self.rfile.read(n) if n else b"")
         m = re.match(r"/files/([0-9a-f]+)$", path)
         if not m:
             return self._404(self.path)
@@ -292,15 +398,21 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     wdalog.setup()
+    # Stored custom* values are pushed back before the listener opens:
+    # resolved's SetLinkDNS is runtime state, so a restart would otherwise drop
+    # the configured servers while the parameter still claims them.
+    wdalog.write.info("host config backends: %s", providers.hostcfg.probe())
+    providers.networking.reapply()
     ok = (fw.rauc_info(fw.EMBEDDED)[0] if os.path.isfile(fw.EMBEDDED) else False)
     scheme = "https" if WDA_TLS else "http"
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), H)
     wdalog.http.info(
         "listening on %s://0.0.0.0:%d order=%s fw=%s embedded=%s auth=%s user=%s "
-        "params=%d+dynamic methods=%d loglevel=%s",
+        "params=%d+dynamic writable=%d methods=%d loglevel=%s",
         scheme, PORT, ORDER, FW_VERSION, "yes" if ok else "no",
         "basic" if WDA_AUTH else "OFF", WDA_USER,
-        len(providers.PARAMS), len(providers.METHODS), wdalog.LEVEL)
+        len(providers.PARAMS), len(providers.WRITES), len(providers.METHODS),
+        wdalog.LEVEL)
     if WDA_TLS:
         # HTTPS like PFC/CC WDA. Cert generated by the entrypoint (or mount your
         # own via TLS_CERT/TLS_KEY). Self-signed - clients use verify=False.
