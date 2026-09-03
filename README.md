@@ -17,17 +17,19 @@ Sphere server (discovery, enrollment, mTLS, heartbeat, parameter sync) and drive
 this API purely as an HTTP client on 443 - it serves no parameters and contains
 no RAUC logic of its own.
 
-> **Handoff folder:** the interface between this repo and the sibling
-> `edge-commissioning-service` lives in `../edge-shared/` -
-> [`CONTRACT.md`](../edge-shared/CONTRACT.md) is what is true now,
-> `updates/` is the history. Read it before changing anything the other side
-> calls, polls or parses, and publish there when you change it.
+<sub>**Internal note (WAGO working copies only):** the interface between this
+repo and the sibling lives in `../edge-shared/` - `CONTRACT.md` is what is true
+now, `updates/` is the history. That folder is not part of this repository and
+is not needed to build, deploy or use anything below.</sub>
 
 Each topic below appears exactly once. Sections 5, 6 and 7 are independent: read
 the one you need. The same material as a single illustrated page, both update
 routes side by side and the bundle build as a numbered sequence, is at
 **https://wagoalex.github.io/edge-computer-fw-update/**
 ([`docs/index.html`](docs/index.html)).
+
+- [What it does](#what-it-does)
+- [Try it in five minutes](#try-it-in-five-minutes)
 
 1. [Pick a path](#1-pick-a-path)
 2. [Device prerequisites](#2-device-prerequisites)
@@ -39,6 +41,172 @@ routes side by side and the bundle build as a numbered sequence, is at
 8. [Repository layout](#8-repository-layout)
 9. [Development and tests](#9-development-and-tests)
 10. [Limits](#10-limits)
+
+---
+
+## What it does
+
+Two things, from one image, on one device.
+
+**A firmware updater.** Hands a RAUC bundle to the host's own `rauc.service`
+over D-Bus, which writes the inactive A/B slot. Either as a one-shot container
+that runs and exits, or over REST.
+
+**A WDA-compatible REST API.** WAGO's Device Access surface, re-implemented for
+an x86 edge: same URLs, same JSON:API envelopes, same enum numbers, so a client
+written for a PFC or TP600 works unchanged.
+
+| Capability | Detail |
+|---|---|
+| Firmware update over REST | upload your own bundle in 4 MB chunks, or install one baked into the image |
+| Firmware update, one-shot | container flashes and exits, no server, no client |
+| A/B activation | staged -> reboot (explicit opt-in) -> confirm, with the state readable from `rauc` at any time |
+| Live device state | ~59 parameters: ethernet ports, bridges and addresses, routes, A/B slots, local users, clock, LED, memory card, identity |
+| Writable settings | hostname, search domain, DNS servers, IP forwarding, and per-bridge IP address and default gateway |
+| Device Sphere models | the `0-0-wds*` parameter tree a PFC300 serves through `pp_wds`, stored as intent |
+| Self-describing | OpenAPI 3.1 generated from the code, so the spec cannot drift from what is served |
+| Config presets | save, list and re-apply named parameter sets |
+
+**Deliberately not.** It is not real WAGO WDA: no OAuth2/PAM, no full parameter
+tree, no `wdx` provider. It never reboots the device unless asked by name. It
+never chooses an A/B slot. It stays unprivileged - no `privileged`, no
+`pid: host`, no `nsenter`; systemd, NetworkManager and RAUC do the privileged
+work over the mounted D-Bus socket and polkit decides. Full list in
+[10](#10-limits).
+
+**Requires** an x86-64 Linux host with `rauc.service` on the system D-Bus and
+Docker. Everything device-side is optional for a look around - the next section
+runs it on any machine with Docker.
+
+---
+
+## Try it in five minutes
+
+No WAGO hardware needed. This runs the real image on your laptop: the firmware
+calls will report there is no RAUC here, and everything else works.
+
+```bash
+docker run --rm -d --name wda-demo \
+  -e MODE=server -e WDA_TLS=false -e WDA_PASSWORD=wago -e PORT=8443 \
+  -p 8443:8443 wagoalex/wago-fw-update-edge-computer:api-latest
+```
+
+Plain HTTP and a known password purely to keep the examples short. On a device
+you get HTTPS with a self-signed certificate and add `-k`; see
+[6.1](#61-deploy).
+
+> **If every call returns 401, check your shell.** `A="-u admin:wago"; curl $A …`
+> works in bash but **not in zsh** (the macOS default), which does not
+> word-split unquoted variables and passes the whole string as one argument.
+> Quote the flags out in full, as below, or use `curl --config`.
+
+**1. Is it alive?** `/health` is the only unauthenticated endpoint.
+
+```bash
+curl -s http://127.0.0.1:8443/health
+# {"status": "ok"}
+```
+
+**2. Everything else needs Basic auth.**
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8443/wda
+# 401
+
+curl -s -u admin:wago http://127.0.0.1:8443/wda
+# "attributes": {"orderNumber": "0752-9xxx", "firmwareVersion": "04.01.00"}
+# "meta": {"version": "1.5.2-compat"}   <- "-compat" flags the re-implementation
+```
+
+**3. Read a parameter.** The value arrives with its WDA type and model path, the
+same shape a real device returns.
+
+```bash
+curl -s -u admin:wago \
+  http://127.0.0.1:8443/wda/parameters/0-0-firmwareupdate-activationstate
+# "attributes": {"dataType": "enum_member", "dataRank": "scalar",
+#                "path": "FirmwareUpdate/ActivationState", "value": 9}
+```
+
+`9` is `NotAvailable` - correct, there is no RAUC on your laptop. Resolve any
+enum:
+
+```bash
+curl -s -u admin:wago \
+  http://127.0.0.1:8443/wda/parameter-definitions/0-0-firmwareupdate-status/enum
+# {"value": 0, "name": "Inactive"}, {"value": 2, "name": "Prepared"}, ...
+```
+
+**4. Ask what you may write.** Never hardcode this list - bridge instance ids
+are discovered at runtime.
+
+```bash
+curl -s -u admin:wago http://127.0.0.1:8443/openapi/wda.openapi.json \
+  | python3 -c 'import sys,json;print(*json.load(sys.stdin)["x-writable-parameters"],sep="\n")'
+
+curl -s -u admin:wago \
+  http://127.0.0.1:8443/wda/parameter-definitions/0-0-networking-hostname-customname
+# "writeable": true, "dataType": "string", "path": "Networking/Hostname/CustomName"
+```
+
+**5. Run a method.** Methods are `POST .../runs`; the HTTP status is `201`
+either way, so branch on `executionStatus`, never on the code.
+
+```bash
+curl -s -u admin:wago -X POST \
+  -H 'Content-Type: application/vnd.api+json' \
+  'http://127.0.0.1:8443/wda/methods/0-0-firmwareupdate-activate/runs?result-behavior=sync' \
+  -d '{"data":{"type":"runs","attributes":{"inArgs":{}}}}'
+# "attributes": {"outArgs": {}, "executionStatus": "done"}
+
+curl -s -u admin:wago http://127.0.0.1:8443/wda/parameters/0-0-firmwareupdate-status
+# "value": 2      <- Prepared
+```
+
+**6. See a refusal, and that it is honest.** `api-latest` carries no bundle:
+
+```bash
+curl -s -u admin:wago -X POST \
+  -H 'Content-Type: application/vnd.api+json' \
+  'http://127.0.0.1:8443/wda/methods/0-0-firmwareupdate-start/runs?result-behavior=sync' \
+  -d '{"data":{"type":"runs","attributes":{"inArgs":{"UploadFiles":{"value":[]}}}}}'
+# "executionStatus": "error", "detail": "no embedded bundle and no UploadFiles given"
+```
+
+**7. Try a bad write.** Validation happens before anything reaches D-Bus:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:wago -X PATCH \
+  -H 'Content-Type: application/vnd.api+json' \
+  -d '{"data":{"type":"parameters","attributes":{"value":"has space"}}}' \
+  http://127.0.0.1:8443/wda/parameters/0-0-networking-hostname-customname
+# 400
+```
+
+**8. Ask for something it does not serve.** You get a plain `404` - no stub, no
+invented default - and the request is logged once as the parity backlog:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:wago \
+  http://127.0.0.1:8443/wda/parameters/0-0-clock-timezone
+# 404
+docker logs wda-demo 2>&1 | grep unimplemented
+# WARNING wda.http unimplemented parameter 0-0-clock-timezone - asked for by a
+#         client, not served by this build
+```
+
+Reset the state machine and clean up:
+
+```bash
+curl -s -u admin:wago -X POST -H 'Content-Type: application/vnd.api+json' \
+  'http://127.0.0.1:8443/wda/methods/0-0-firmwareupdate-clear/runs?result-behavior=sync' \
+  -d '{"data":{"type":"runs","attributes":{"inArgs":{}}}}' > /dev/null
+docker rm -f wda-demo
+```
+
+Then deploy it for real: [6.1](#61-deploy), or the Portainer stack in
+[3](#3-images-and-compose-files). A full firmware run is [6.4](#64-sequence-the-embedded-bundle)
+and [6.5](#65-sequence-your-own-bundle).
 
 ---
 
@@ -336,6 +504,8 @@ An empty or omitted `UploadFiles` is the documented signal for the bundle inside
 the image. There is no separate endpoint.
 
 ```bash
+# bash. Under zsh (the macOS default) unquoted $A is NOT word-split and every
+# call returns 401 - use `M() { curl -sk -u admin:$WDA_PASSWORD ... }` instead.
 IP=192.168.2.17; A="-u admin:$WDA_PASSWORD"; H="Content-Type: application/vnd.api+json"
 M() { curl -sk $A -X POST "https://$IP/wda/methods/0-0-firmwareupdate-$1/runs?result-behavior=sync" -H "$H" -d "${2:-{\}}"; }
 
