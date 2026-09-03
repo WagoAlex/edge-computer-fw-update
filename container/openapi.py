@@ -72,7 +72,7 @@ def document(order_number, firmware_version, wda_version):
                 "parameter_write_object": {
                     "type": "object",
                     "properties": {
-                        "id": {"type": "string", "enum": sorted(providers.WRITES)},
+                        "id": {"type": "string", "enum": providers.writable_ids()},
                         "type": {"const": "parameters"},
                         "attributes": {"type": "object",
                                        "properties": {"value": {}},
@@ -206,7 +206,7 @@ def document(order_number, firmware_version, wda_version):
                         "status": {"const": "ok"}}}}}}}}},
         },
         "x-parameter-metadata": params,
-        "x-writable-parameters": sorted(providers.WRITES),
+        "x-writable-parameters": providers.writable_ids(),
         "x-firmware-update-enums": {
             "status": fw.STATUS_NAMES, "errorcause": fw.ERROR_CAUSES},
     }

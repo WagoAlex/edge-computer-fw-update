@@ -82,7 +82,7 @@ def test_spec_admits_it_is_a_subset():
     assert "/wda/parameters GET" in desc  # names the discovery paths we lack
     # PATCH exists now, but only for the ids the registry actually accepts
     assert "x-writable-parameters" in desc
-    assert d["x-writable-parameters"] == sorted(providers.WRITES)
+    assert d["x-writable-parameters"] == providers.writable_ids()
 
 
 def test_health_is_documented_as_unauthenticated():

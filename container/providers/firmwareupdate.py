@@ -4,9 +4,27 @@
 Moved verbatim out of api.py (Phase 0 is behaviour-preserving). State machine:
   Inactive(0) --activate--> Prepared(2) --getuploadids--> (upload /files)
     --start--> Started(3) --rauc install--> Unconfirmed(4)
-    --finish--> Finished(8) (rauc mark-good) --clear--> Inactive(0)
+    --finish--> Finished(8) (staged, not yet live) --clear--> Inactive(0)
   any failure -> Error(7) with a numbered errorcause.
+
+Activation is the second half and does NOT fit in that machine, because the
+reboot that activates a slot also restarts this container. `rauc install` writes
+the INACTIVE slot and marks it primary; the device keeps running the old slot
+until it reboots, and the bootloader will fall back unless the new slot is
+marked good once it is running. So:
+
+  finish   -> Finished(8): flashed and staged. Nothing is confirmed yet.
+  reboot   -> explicit opt-in method. Never implicit, never a side effect.
+  confirm  -> `rauc status mark-good booted`, only once the staged slot IS the
+              booted one. Refused before the reboot, where mark-good would
+              confirm the slot being replaced.
+
+`0-0-firmwareupdate-activationstate` reads that state back out of rauc rather
+than out of this process, so it is still correct after the reboot wiped the
+in-memory machine: Unconfirmed(4) while a slot is pending or the booted slot is
+not marked good, Confirmed(5) once it is.
 """
+import json
 import os
 import re
 import shutil
@@ -15,6 +33,10 @@ import threading
 import uuid
 
 import wdalog
+
+from . import cached
+from . import hostcfg
+from . import meta
 
 EMBEDDED = os.environ.get("BUNDLE", "/firmware/bundle.raucb")
 STAGE_DIR = os.environ.get("STAGE_DIR", "/docker/rauc-stage")
@@ -71,7 +93,12 @@ def note_upload_size(up, end):
 
 
 def run(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True)
+    """Never raises: a device without rauc installed is a result to report, not
+    a traceback out of a parameter read. Same posture as hostcfg._busctl."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True)
+    except OSError as e:
+        return subprocess.CompletedProcess(cmd, 127, "", f"{cmd[0]}: {e}")
 
 
 def rauc_info(path):
@@ -120,6 +147,50 @@ def _install_worker(path, stage_from=None):
             st["errorcause"] = 200 if "signature" in blob else 600
             st["debuginfo"] = "\n".join(tail[-8:])
             logline(f"install FAILED -> errorcause {st['errorcause']}")
+
+
+# ---- slot state: what rauc says, not what this process remembers -----------
+# Cached: activationstate is polled, and one `rauc status` per GET on a small
+# box is a subprocess we do not need.
+
+@cached(5)
+def rauc_slots():
+    """(booted, pending, booted_is_good).
+
+    booted  slot name currently running, e.g. "rootfs.1" ("" if rauc is absent)
+    pending slot marked primary for the next boot when it is NOT the booted one,
+            i.e. an installed update waiting for a reboot; "" otherwise
+    booted_is_good  the booted slot is marked good - the bootloader will not
+            fall back away from it
+
+    Measured on the edge 2026-09-02: `booted` in rauc's own JSON is a device
+    path (/dev/sda2), not a slot name, so the booted slot is the one whose
+    state is "booted" - never that field.
+    """
+    r = run(["rauc", "status", "--output-format=json"])
+    if r.returncode != 0:
+        return "", "", True
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        return "", "", True
+    booted, good = "", True
+    for entry in d.get("slots", []):
+        for name, slot in entry.items():
+            if slot.get("state") == "booted":
+                booted, good = name, slot.get("boot_status") == "good"
+    primary = d.get("boot_primary") or ""
+    return booted, ("" if primary == booted else primary), good
+
+
+def activation_state():
+    """0-0-firmwareupdate-activationstate, in STATUS_NAMES numbering."""
+    booted, pending, good = rauc_slots()
+    if not booted:
+        return 9                                  # NotAvailable - no rauc here
+    if pending or not good:
+        return 4                                  # Unconfirmed
+    return 5                                      # Confirmed
 
 
 # ---- method implementations (return (outArgs|None, err_dsc|None, detail)) ----
@@ -189,10 +260,53 @@ def m_finish(inargs):
     with _lock:
         if st["status"] != 4:
             return None, "1", f"not finishable in status {st['status']}"
-    run(["rauc", "status", "mark-good"])
     with _lock:
         st["status"] = 8                                  # Finished
-    logline("finish -> mark-good -> Finished")
+    rauc_slots.cache_clear()
+    booted, pending, _good = rauc_slots()
+    # Deliberately no mark-good here: we are still running the OLD slot, and
+    # `rauc status mark-good` confirms the BOOTED one - it would confirm the
+    # slot being replaced and do nothing at all for the update. Confirmation is
+    # 0-0-firmwareupdate-confirm, after the reboot.
+    logline(f"finish -> Finished; {pending or 'no slot'} staged for the next boot "
+            f"(running {booted or 'unknown'}) - reboot, then confirm")
+    return {}, None, None
+
+
+def m_confirm(inargs):
+    """`rauc status mark-good booted` - the last step of an A/B update.
+
+    Refused while a slot is still pending: that means the staged slot has not
+    been booted yet, and confirming here would mark the outgoing slot good.
+    """
+    rauc_slots.cache_clear()
+    booted, pending, _good = rauc_slots()
+    if not booted:
+        return None, "1", "rauc reports no booted slot on this device"
+    if pending:
+        return None, "1", (f"{pending} is staged but not running yet - reboot "
+                           f"(0-0-firmwareupdate-reboot), then confirm")
+    r = run(["rauc", "status", "mark-good", "booted"])
+    if r.returncode != 0:
+        return None, "1", (r.stderr or r.stdout).strip() or "mark-good failed"
+    rauc_slots.cache_clear()
+    with _lock:
+        st["status"] = 5                                  # Confirmed
+    logline(f"confirm -> mark-good {booted} -> Confirmed")
+    return {"Slot": {"value": booted}}, None, None
+
+
+def m_reboot(inargs):
+    """Explicit opt-in, and only that. Nothing else in this API reboots: an
+    update is staged and stays staged until a caller asks for this by name and
+    passes Confirm=true, so a client that merely replays the update sequence
+    can never restart the device."""
+    if inargs.get("Confirm", {}).get("value") is not True:
+        return None, "1", "reboot requires inArgs Confirm=true - it is never implicit"
+    logline("reboot requested -> logind Reboot")
+    ok, detail = hostcfg.reboot()
+    if not ok:
+        return None, "1", f"logind refused the reboot: {detail}"
     return {}, None, None
 
 
@@ -236,6 +350,8 @@ METHODS = {
     "0-0-firmwareupdate-getuploadids": m_getuploadids,
     "0-0-firmwareupdate-start": m_start,
     "0-0-firmwareupdate-finish": m_finish,
+    "0-0-firmwareupdate-confirm": m_confirm,
+    "0-0-firmwareupdate-reboot": m_reboot,
     "0-0-firmwareupdate-clear": m_clear,
     "0-0-firmwareupdate-cancel": m_cancel,
     "0-0-firmwareupdate-settimeout": m_settimeout,
@@ -252,6 +368,29 @@ def _snap(key):
 
 PARAMS = {f"0-0-firmwareupdate-{k}": _snap(k)
           for k in ("status", "progress", "errorcause", "debuginfo", "revertable")}
+# The activation half. These read rauc, not `st`, so they are still true after
+# the reboot that threw the in-memory machine away.
+PARAMS.update({
+    "0-0-firmwareupdate-activationstate": activation_state,
+    "0-0-firmwareupdate-bootedslot": lambda: rauc_slots()[0],
+    "0-0-firmwareupdate-pendingslot": lambda: rauc_slots()[1],
+    "0-0-firmwareupdate-confirmed": lambda: rauc_slots()[2],
+})
 
 ENUMS = {"0-0-firmwareupdate-status": STATUS_NAMES,
+         "0-0-firmwareupdate-activationstate": STATUS_NAMES,
          "0-0-firmwareupdate-errorcause": ERROR_CAUSES}
+
+# The FW31 cassette is a dump of a device whose WDA has no activation surface,
+# so these four carry their own metadata under the same FirmwareUpdate/ path.
+meta.register({
+    "0-0-firmwareupdate-activationstate":
+        {"dataType": "enum_member", "dataRank": "scalar",
+         "path": "FirmwareUpdate/ActivationState"},
+    "0-0-firmwareupdate-bootedslot":
+        {"dataType": "string", "dataRank": "scalar", "path": "FirmwareUpdate/BootedSlot"},
+    "0-0-firmwareupdate-pendingslot":
+        {"dataType": "string", "dataRank": "scalar", "path": "FirmwareUpdate/PendingSlot"},
+    "0-0-firmwareupdate-confirmed":
+        {"dataType": "boolean", "dataRank": "scalar", "path": "FirmwareUpdate/Confirmed"},
+})

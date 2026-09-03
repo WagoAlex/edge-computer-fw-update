@@ -8,7 +8,9 @@ def test_firmwareupdate_methods_unchanged():
         "0-0-firmwareupdate-activate", "0-0-firmwareupdate-getuploadids",
         "0-0-firmwareupdate-start", "0-0-firmwareupdate-finish",
         "0-0-firmwareupdate-clear", "0-0-firmwareupdate-cancel",
-        "0-0-firmwareupdate-settimeout", "0-0-firmwareupdate-getlastlogentries"}
+        "0-0-firmwareupdate-settimeout", "0-0-firmwareupdate-getlastlogentries",
+        # the activation half - see test_activation.py
+        "0-0-firmwareupdate-confirm", "0-0-firmwareupdate-reboot"}
 
 
 def test_firmwareupdate_params_unchanged():

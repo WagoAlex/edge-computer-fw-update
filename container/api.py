@@ -26,8 +26,11 @@ carry links/relationships, documents carry jsonapi and meta. This is a strict
 subset of the 40-path spec - discovery collections are not implemented - so the
 spec we serve describes only these paths and says so.
 
-Everything served today is read-only apart from the firmware-update state
-machine; writable `custom*`/`static*` parameters are Phase 3.
+This is the ONLY WDA server on the device. The sibling `edge-commissioning-service`
+drives it as an HTTP client and serves no parameters of its own.
+
+Every id a client asks for that this build does not serve is logged once at
+WARNING ("unimplemented ..."); that log is the PFC300-parity backlog.
 
 ponytail: stdlib only. Chunk assembly is by Content-Range offset - the exact
 protocol fw_update.py speaks.
@@ -80,25 +83,59 @@ def check_auth(header):
 
 
 def parse_byteranges(body, content_type):
-    """Extract (offset, data) from one multipart/byteranges part."""
-    m = re.search(r"boundary=([^\s;]+)", content_type or "")
-    if not m:
+    """Extract (offset, data) from one multipart/byteranges part.
+
+    The length comes from Content-Range, not from where the next boundary
+    delimiter appears. Splitting on the boundary is what MIME parsers do and it
+    is wrong for this payload: a firmware bundle is 1.3 GB of arbitrary bytes,
+    and a client that picks a short fixed boundary (fw_update.py uses one) will
+    eventually upload a chunk that contains its own delimiter. The split then
+    truncates that chunk, every later chunk still lands at its own offset, and
+    the result is a bundle with a hole in it that rauc rejects for a reason
+    naming neither the upload nor the client. Content-Range already states the
+    length; use it.
+
+    The CRLF strip stays as the fallback for a client whose declared range is
+    shorter than what it actually sent - exactly one CRLF, NOT a byte set, or a
+    chunk ending in 0x0d/0x0a/0x2d loses a byte.
+    """
+    if not re.search(r"boundary=([^\s;]+)", content_type or ""):
         return None
-    b = ("--" + m.group(1)).encode()
-    for part in body.split(b):
-        if b"Content-Range:" not in part:
-            continue
-        head, _, data = part.partition(b"\r\n\r\n")
-        cr = re.search(rb"Content-Range:\s*bytes\s+(\d+)-(\d+)/(\d+)", head)
-        if not cr:
-            continue
-        # strip exactly the one CRLF that separates the payload from the next
-        # boundary delimiter - NOT a byte set, or binary chunks ending in
-        # 0x0d/0x0a/0x2d would be silently truncated.
-        if data.endswith(b"\r\n"):
-            data = data[:-2]
-        return int(cr.group(1)), data
-    return None
+    cr = re.search(rb"Content-Range:\s*bytes\s+(\d+)-(\d+)/(\d+)", body)
+    if not cr:
+        return None
+    head_end = body.find(b"\r\n\r\n", cr.end())
+    if head_end < 0:
+        return None
+    data = body[head_end + 4:]
+    declared = int(cr.group(2)) - int(cr.group(1)) + 1
+    if len(data) >= declared:
+        data = data[:declared]
+    elif data.endswith(b"\r\n"):
+        data = data[:-2]
+    return int(cr.group(1)), data
+
+
+# ---- the parity backlog ----------------------------------------------------
+# PFC300 parity here is "grows on demand": an id is added when a real WDS or WDA
+# client needs it. That only works if the demand is visible, so every id a
+# caller asks for and this build does not serve is logged once, at WARNING.
+# Grep `unimplemented` in `docker logs` and that is the backlog, in the order
+# real clients asked for it. Deliberately not a registry, a stub or a generator:
+# it records what was wanted, it does not pretend to answer.
+_ASKED_FOR = set()
+
+
+def note_unimplemented(kind, ident):
+    wdalog.http.warning("unimplemented %s %s - asked for by a client, not served "
+                        "by this build", kind, ident)
+
+
+def _note_once(kind, ident):
+    key = (kind, ident)
+    if key not in _ASKED_FOR:
+        _ASKED_FOR.add(key)
+        note_unimplemented(kind, ident)
 
 
 class H(BaseHTTPRequestHandler):
@@ -125,6 +162,7 @@ class H(BaseHTTPRequestHandler):
     def _param(self, pid):
         v = providers.param_value(pid)
         if v is None:
+            _note_once("parameter", pid)
             return self._404(pid)
         link = f"/wda/parameters/{pid}"
         attrs = meta.describe(pid, v)
@@ -179,6 +217,7 @@ class H(BaseHTTPRequestHandler):
             pid = path[len("/wda/parameter-definitions/"):]
             v = providers.param_value(pid)
             if v is None:
+                _note_once("parameter-definition", pid)
                 return self._404(pid)
             attrs = meta.describe(pid, v)
             attrs["writeable"] = providers.writable(pid)
@@ -213,6 +252,7 @@ class H(BaseHTTPRequestHandler):
         mid = m.group(1)
         fn = providers.METHODS.get(mid)
         if not fn:
+            _note_once("method", mid)
             return self._404(mid)
         try:
             inargs = json.loads(body or b"{}").get("data", {}).get("attributes", {}).get("inArgs", {})
@@ -256,6 +296,7 @@ class H(BaseHTTPRequestHandler):
         if not isinstance(pid, str) or not isinstance(attrs, dict) or "value" not in attrs:
             return 400, "data.id and data.attributes.value are required"
         if not providers.writable(pid):
+            _note_once("writable parameter", pid)
             # 404 for read-only too: a client learns writability from the
             # definition, and a value that cannot be written has no PATCH
             # resource to address.
@@ -411,7 +452,7 @@ if __name__ == "__main__":
         "params=%d+dynamic writable=%d methods=%d loglevel=%s",
         scheme, PORT, ORDER, FW_VERSION, "yes" if ok else "no",
         "basic" if WDA_AUTH else "OFF", WDA_USER,
-        len(providers.PARAMS), len(providers.WRITES), len(providers.METHODS),
+        len(providers.PARAMS), len(providers.writable_ids()), len(providers.METHODS),
         wdalog.LEVEL)
     if WDA_TLS:
         # HTTPS like PFC/CC WDA. Cert generated by the entrypoint (or mount your

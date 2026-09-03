@@ -11,6 +11,18 @@ reboots and a bad flash is one reboot from recovery. The container never chooses
 a slot; it hands the bundle to the host `rauc.service` over the mounted D-Bus
 socket and stays unprivileged.
 
+This container is the **only WDA server on the device**. The sibling repo
+`edge-commissioning-service` holds the device's relationship with a WAGO Device
+Sphere server (discovery, enrollment, mTLS, heartbeat, parameter sync) and drives
+this API purely as an HTTP client on 443 - it serves no parameters and contains
+no RAUC logic of its own.
+
+> **Handoff folder:** the interface between this repo and the sibling
+> `edge-commissioning-service` lives in `../edge-shared/` -
+> [`CONTRACT.md`](../edge-shared/CONTRACT.md) is what is true now,
+> `updates/` is the history. Read it before changing anything the other side
+> calls, polls or parses, and publish there when you change it.
+
 Each topic below appears exactly once. Sections 5, 6 and 7 are independent: read
 the one you need. The same material as a single illustrated page, both update
 routes side by side and the bundle build as a numbered sequence, is at
@@ -100,7 +112,27 @@ Compose files in `container/`:
 | `docker-compose.yml` | one-shot install, exits |
 | `docker-compose.server.yml` | REST API on `bundle-latest` |
 | `docker-compose.api.yml` | REST API on `api-latest`, no embedded bundle |
+| `docker-compose.portainer.yml` | **Portainer stack**: REST API, absolute host paths |
+| `docker-compose.fwupdate.portainer.yml` | **Portainer stack**: standalone one-shot update |
 | `docker-compose.full.yml` | reference: every env var with its real default, both services |
+
+The two Portainer files are the ones to paste into Portainer -> Stacks -> Add
+stack -> Web editor; the others assume a checkout and a working directory.
+
+`docker-compose.portainer.yml`'s `wago-edge-wda-api` service block is **identical
+to the one in the sibling `edge-commissioning-service`'s own
+`docker-compose.portainer.yml`** - same service name, container name, image,
+environment, mounts and healthcheck, verified by resolving both with
+`docker compose config`. So the two stacks are interchangeable:
+
+| Deploy | For |
+|---|---|
+| this repo's `docker-compose.portainer.yml` | the device half alone, no Device Sphere |
+| the sibling's `docker-compose.portainer.yml` | the device half **plus** the commissioning agent, one stack |
+
+Run one or the other, never both: they claim the same container name and the
+same `PORT`. The standalone firmware stack coexists with either - different
+container name, no port, no host network.
 
 Build locally instead of pulling:
 
@@ -263,6 +295,41 @@ Started(3) --rauc install--> Unconfirmed(4) --finish--> Finished(8) --clear--> I
 Poll `0-0-firmwareupdate-status` and `-progress`; on `Error(7)` read
 `-errorcause` and `-debuginfo`.
 
+**That machine ends at "flashed", not at "running".** `rauc install` writes the
+*inactive* slot and marks it primary; the update goes live on the next boot, and
+the bootloader falls back unless the new slot is marked good once it is running.
+The reboot also restarts this container, so the in-memory machine above cannot
+span it. Activation is therefore a second, separate track that reads its state
+out of `rauc` rather than out of this process:
+
+```
+finish  -> Finished(8)       flashed and staged; nothing is live yet
+reboot  -> explicit opt-in    0-0-firmwareupdate-reboot, inArgs Confirm=true
+confirm -> Confirmed(5)       rauc mark-good on the now-booted slot
+```
+
+Read it back at any time, including from a freshly started container:
+
+| Parameter | Value |
+|---|---|
+| `0-0-firmwareupdate-activationstate` | `Unconfirmed(4)` while a slot is staged or the booted slot is not marked good, `Confirmed(5)` once it is, `NotAvailable(9)` without rauc |
+| `0-0-firmwareupdate-bootedslot` | the slot running now, e.g. `rootfs.1` |
+| `0-0-firmwareupdate-pendingslot` | the slot staged for the next boot, `""` if none |
+| `0-0-firmwareupdate-confirmed` | the booted slot is marked good |
+
+```bash
+M finish                                    # -> Finished(8), pendingslot set
+M reboot '{"data":{"type":"runs","attributes":{"inArgs":{
+   "Confirm":{"value":true}}}}}'            # nothing else ever reboots
+# after the device comes back, on the new slot:
+M confirm                                   # -> Confirmed(5)
+```
+
+`confirm` is refused while `pendingslot` is non-empty: before the reboot the
+booted slot is the one being *replaced*, and `rauc status mark-good` there would
+report success and confirm the wrong slot. That is why `finish` no longer runs
+mark-good.
+
 ### 6.4 Sequence: the embedded bundle
 
 An empty or omitted `UploadFiles` is the documented signal for the bundle inside
@@ -332,7 +399,9 @@ already: `PLC_IP=192.168.2.17 PLC_USERNAME=admin PLC_PASSWORD=... WUP_PATH=...`.
 | `0-0-firmwareupdate-activate` | `KeepCustomerApplication`, `CustomKeyValuePairs` | none |
 | `0-0-firmwareupdate-getuploadids` | `FileNames` (list) | `UploadFiles` (list of ids) |
 | `0-0-firmwareupdate-start` | `UploadFiles`, empty for the embedded bundle | none |
-| `0-0-firmwareupdate-finish` | none | none, runs `rauc status mark-good` |
+| `0-0-firmwareupdate-finish` | none | none, `Unconfirmed(4)` -> `Finished(8)`; stages, does not confirm |
+| `0-0-firmwareupdate-confirm` | none | `Slot`, runs `rauc status mark-good booted`; refused while a slot is pending |
+| `0-0-firmwareupdate-reboot` | `Confirm` (must be `true`) | none, asks logind to restart the host |
 | `0-0-firmwareupdate-clear` | none | none, deletes staged uploads |
 | `0-0-firmwareupdate-cancel` | none | none, errorcause 101 |
 | `0-0-firmwareupdate-settimeout` | `Timeout` (seconds) | none |
@@ -352,6 +421,8 @@ Read-only. Every id comes from the FW31 cassette
 | `0-0-firmwareupdate-errorcause` | numbered cause | state machine |
 | `0-0-firmwareupdate-debuginfo` | last RAUC output lines | state machine |
 | `0-0-firmwareupdate-revertable` | bool | state machine |
+| `0-0-firmwareupdate-activationstate` | 4/5/9, see [6.3](#63-the-update-state-machine) | `rauc status` |
+| `0-0-firmwareupdate-bootedslot` / `-pendingslot` / `-confirmed` | A/B slot activation | `rauc status` |
 | `0-0-identity-ordernumber` / `-description` / `-serialnumber` | device identity | env, DMI |
 | `0-0-version-firmwareversion` / `-hardwarereleaseindex` / `-softwarereleaseindex` | versions | env |
 | `0-0-systems` | slot instance list | `rauc status --output-format=json` |
@@ -360,7 +431,8 @@ Read-only. Every id comes from the FW31 cassette
 | `0-0-networking-ethernetports` | port instance list | `/sys/class/net` |
 | `0-0-networking-ethernetports-<n>-name` / `-enabled` / `-haslink` / `-macaddress` / `-currentspeedduplex` | per port | `/sys/class/net` |
 | `0-0-networking-bridges` | bridge instance list | `/sys/class/net` |
-| `0-0-networking-bridges-<n>-name` / `-label` / `-macaddress` / `-connectedethernetports` / `-ipconfiguration-currentaddresses` / `-ipconfiguration-currentdefaultgateway` | per bridge | `/sys/class/net`, `ip -o -4 addr` |
+| `0-0-networking-bridges-<n>-name` / `-label` / `-macaddress` / `-connectedethernetports` / `-ipconfiguration-currentaddresses` / `-ipconfiguration-currentdefaultgateway` | per bridge, live | `/sys/class/net`, `ip -o -4 addr` |
+| `0-0-networking-bridges-<n>-ipconfiguration-addresses` / `-staticdefaultgateway` | per bridge, **configured** - writable, see [6.8](#68-writable-parameters) | NetworkManager profile |
 | `0-0-networking-routing-currentroutes` | route list | `/proc/net/route` |
 | `0-0-networking-routing-currentroutes-<n>-address` / `-gatewayaddress` / `-gatewaymetric` / `-interface` | per route | same |
 | `0-0-networking-hostname-currentname`, `-domain-currentdomain`, `-dns-utilizeddnsservers` | live names and resolvers | hostname, `/etc/resolv.conf` |
@@ -379,11 +451,26 @@ Notes that change what you read:
 - Docker's own `docker0`, `br-<netid>` and `veth*` are filtered out of bridges
   and routes; they are not device networking and would shift instance ids
   whenever a container starts.
+- **A port with an address and no bridge is served as its own bridge instance.**
+  WDA puts every IP address under `Bridges/<n>/IPConfiguration`, and a stock edge
+  bridges X1/X2 - but on the edge as deployed NetworkManager manages X1 directly
+  and the only bridge devices are Docker's. A strict reading would report no
+  bridges and therefore no IP address anywhere on the device. So when no WAGO
+  bridge exists the L3 interface *is* the port and keeps the port's own number:
+  X1 becomes `bridges-1`, X11 would become `bridges-11`. A device that does have
+  a real bridge uses it and this never applies.
+- `-ipconfiguration-addresses` is the profile (what was configured) and is empty
+  on a DHCP link even while it holds a lease. `-currentaddresses` is the live
+  address. Different questions; this API does not conflate them.
+- `-ipconfiguration-sources` is in WAGO's model and is **not** served: the enum
+  numbering is not published and a guess would be worse than an absence.
 - An absent backend reports absent (`false`, `""`, `[]`), never a plausible
   guess. Without `/etc/passwd` mounted you get the container's own accounts,
   which looks right and is not.
-- Four parameters are writable, see [6.8](#68-writable-parameters). Every
-  other `custom*` / `static*` id is still absent rather than stubbed.
+- Six ids are writable, see [6.8](#68-writable-parameters). Every other
+  `custom*` / `static*` id is still absent rather than stubbed - and every id a
+  client asks for that is absent is logged once at `WARNING`, see
+  [6.12](#612-logs).
 - **One LED, not five.** A PFC300 publishes SYS, RUN, IO and more because its
   firmware drives them. On an x86 edge, PWR, HDD and BTR are wired to the power
   rail, the SATA activity pin and the RTC battery: nothing in software reads
@@ -395,8 +482,9 @@ Notes that change what you read:
 
 ### 6.8 Writable parameters
 
-Four parameters accept a write. None of them can cut the connection the request
-arrived on, which is why they are the first slice.
+Six ids accept a write. The first four cannot cut the connection the request
+arrived on, which is why they were the first slice. **The last two can**, and
+that is a deliberate reversal of the earlier rule - see the warning below.
 
 | Parameter | Backend | Applies to |
 |---|---|---|
@@ -404,6 +492,41 @@ arrived on, which is why they are the first slice.
 | `0-0-networking-domain-customdomain` | NM `ipv4/ipv6.dns-search` | the resolver search domain on the link's profile |
 | `0-0-networking-dns-customdnsservers` | `resolve1.SetLinkDNS`, else NM `ipv4/ipv6.dns` | the link carrying the default route, else the first with carrier |
 | `0-0-networking-routing-ipforwarding-enabled` | sysctl drop-in + `systemd-sysctl` restart | `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding` |
+| `0-0-networking-bridges-<n>-ipconfiguration-addresses` | NM `ipv4.address-data` + `method` | the addresses on that bridge's profile |
+| `0-0-networking-bridges-<n>-ipconfiguration-staticdefaultgateway` | NM `ipv4.gateway` | the default gateway on that profile |
+
+**The IP writes can strand the device.** Removing the address a caller is
+talking to drops that caller, and NetworkManager's `Reapply` makes it live at
+once. They exist because a Device Sphere twin sets a device's address through
+exactly those ids, and because the second, unauthenticated WDA server the sibling
+`edge-commissioning-service` used to run on `:8080` - with its own
+`0-0-networking-configure` method - is gone, so this is the only surface left
+that can do it. Static routes remain out of scope. Guards, and they are only
+guards: an address must carry an explicit prefix (a bare `192.168.2.17` would
+become `/32`, which is unreachable and has no way back), a static gateway is
+refused without a static address, and every applied change is logged at
+`WARNING`. Bridge instances are discovered at runtime, so ask
+`GET /wda/parameter-definitions/<id>` or read `x-writable-parameters` in the
+generated spec rather than assuming which numbers exist.
+
+Setting the addresses keeps the gateway and vice versa - they are separate ids.
+An empty address list is not a no-op: it sets `method=auto`, handing the link
+back to DHCP.
+
+```bash
+curl -sk -u admin:$WDA_PASSWORD -X PATCH \
+  -H 'Content-Type: application/vnd.api+json' \
+  -d '{"data":{"type":"parameters","attributes":{"value":["192.168.2.17/24"]}}}' \
+  https://192.168.2.17/wda/parameters/0-0-networking-bridges-1-ipconfiguration-addresses
+```
+
+**The writer is NetworkManager, and only NetworkManager.** Measured on the edge
+on 2026-09-02: `systemd-networkd` is *inactive*, `NetworkManager` *active*,
+`systemd-resolved` *inactive*. The sibling's networkd drop-in writer would have
+written `/etc/systemd/network/10-X1.network`, reported success and changed
+nothing on this hardware, so it was not ported and there is no second writer to
+choose between. A device without NetworkManager on the bus gets a `503` that
+says exactly this.
 
 The first three go over the system D-Bus socket the container already mounts, so
 nothing gains a privilege: systemd or NetworkManager does the privileged part and
@@ -457,8 +580,9 @@ Three rules the implementation keeps:
   An empty custom value means "no override" and never renames the running host.
 - **Validate, then apply once.** A rejected hostname or a malformed address
   never reaches D-Bus, and nothing is persisted.
-- **Nothing that carries an IP address is writable** - bridge addresses,
-  gateways, static routes. A regression test enforces it.
+- **An address write is validated in full before anything reaches the bus**, and
+  the rest of the NetworkManager profile is read, mutated and written back
+  intact - one dropped key is a profile without its address.
 
 Custom values live in `/app/data/network-custom.json` and are pushed back at
 container start, because `SetLinkDNS` is runtime state that a reboot drops.
@@ -560,6 +684,25 @@ password, not request bodies. The username is, deliberately.
 `/health` and individual upload chunks are DEBUG, since a 30 s healthcheck is
 2880 lines a day and a 1.3 GB bundle is over a thousand chunks; uploads still
 get one INFO line per 100 chunks. `WDA_LOG_LEVEL=DEBUG` turns them on.
+
+**The parity backlog.** PFC300 parity here grows on demand - an id is written
+when a real client needs it. So every id a caller asks for that this build does
+not serve is logged once, at `WARNING`:
+
+```
+2026-09-02T14:22:03+02:00 WARNING wda.http unimplemented parameter 0-0-clock-timezone - asked for by a client, not served by this build
+2026-09-02T14:22:04+02:00 WARNING wda.http unimplemented writable parameter 0-0-networking-bridges-1-ipconfiguration-sources - ...
+```
+
+```bash
+docker logs wago-edge-wda-api 2>&1 | grep -o 'unimplemented .*' | sort -u
+```
+
+That list, in the order real clients asked for it, is the backlog - most useful
+after a Device Sphere synchronize, where it names exactly which twin parameters
+the device could not answer. It is a log and nothing more: the response is still
+a plain `404`, there is no stub, no default value and no generated placeholder.
+Deduplicated per id, so a polling client contributes one line, not one per cycle.
 
 ---
 
@@ -731,21 +874,30 @@ with slot B written and both slots reporting boot status good.
 ## 10. Limits
 
 - **Not real WDA.** Same URLs, JSON and enums for drop-in tooling, but no
-  OAuth2/PAM, no full parameter tree, no `wdx` provider: the update state machine
-  plus the read-only projections in [6.7](#67-parameters) and the two writable
-  ids in [6.8](#68-writable-parameters).
+  OAuth2/PAM, no full parameter tree, no `wdx` provider: the update and
+  activation tracks plus the projections in [6.7](#67-parameters) and the six
+  writable ids in [6.8](#68-writable-parameters). A PFC300 advertises far more;
+  what is missing and actually wanted is in the log, see [6.12](#612-logs).
 - **Auth is HTTP Basic over self-signed TLS**, the PFC/CC posture. For the real
   stack, front it with the `wago-wda:x86` container (lighttpd + authd) from the
   WAGO SDK rather than growing `api.py`.
 - **Self-signed bundles install here and nowhere else.** A genuine PFC or TP600
   WDA rejects them on the production signature check.
-- **The API never reboots the device.** `rauc install` marks the inactive slot
-  for the next boot; the device keeps running the current slot until it
-  restarts, including an unplanned restart.
-- **Writes are one slice deep.** Hostname, domain, DNS and IP forwarding are writable
-  ([6.8](#68-writable-parameters)); every other `custom*` / `static*`
-  parameter and `0-0-presets-apply` are not implemented and not stubbed.
-  Nothing that sets an IP address is writable, by standing rule.
+- **The API never reboots the device on its own.** `rauc install` marks the
+  inactive slot for the next boot; the device keeps running the current slot
+  until it restarts. `0-0-firmwareupdate-reboot` exists and is the only way to
+  ask for one, and it refuses without `Confirm=true` - nothing else in the API,
+  including the whole update sequence, restarts anything.
+- **Writes are two slices deep.** Hostname, domain, DNS, IP forwarding and now
+  the per-bridge IP address and default gateway are writable
+  ([6.8](#68-writable-parameters)); every other `custom*` / `static*` parameter
+  and `0-0-presets-apply` are not implemented and not stubbed.
+- **`-ipconfiguration-sources` is not served.** WAGO's model has it; the enum
+  numbering is not published and this build does not guess one.
+- **Application deployment is intent, not action.** `0-0-wdsdeployment-*` and
+  the other `0-0-wds*` ids are stored and read back verbatim - what the server
+  asked for, never "done". The sibling `edge-commissioning-service` polls them
+  and carries them out; this API installs no applications.
 
 See the sibling `wago-plc-mcp-server` repo for the reverse-engineered WDA
 mechanism and the paramd/authd x86 build this API stands in for.

@@ -28,6 +28,8 @@ HOSTNAME1 = ("org.freedesktop.hostname1", "/org/freedesktop/hostname1",
              "org.freedesktop.hostname1")
 RESOLVE1 = ("org.freedesktop.resolve1", "/org/freedesktop/resolve1",
             "org.freedesktop.resolve1.Manager")
+LOGIN1 = ("org.freedesktop.login1", "/org/freedesktop/login1",
+          "org.freedesktop.login1.Manager")
 
 _FAMILY = {4: socket.AF_INET, 6: socket.AF_INET6}
 
@@ -62,6 +64,16 @@ def hostname():
 def set_static_hostname(name):
     """Persistent hostname (writes /etc/hostname on the host). (ok, detail)."""
     return _busctl("call", *HOSTNAME1, "SetStaticHostname", "sb", name, "false")
+
+
+def reboot():
+    """Ask logind to restart the host. (ok, detail).
+
+    Reachable only from 0-0-firmwareupdate-reboot, which requires Confirm=true:
+    a staged firmware slot goes live on the next boot and nothing in this API
+    may decide when that is.
+    """
+    return _busctl("call", *LOGIN1, "Reboot", "b", "true")
 
 
 def ifindex(ifname):

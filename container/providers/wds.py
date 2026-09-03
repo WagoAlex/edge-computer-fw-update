@@ -18,11 +18,21 @@ The ids are not guessed. They are the strings WDS's own binary carries
 Defaults come from WAGO's own model files as recorded in the sibling project's
 POST-ONBOARDING.md: MonitoringInterval 120, HeartbeatInterval 30.
 
-What this provider does NOT do: act on a deployment. Writing
-`applicationinstancepackage` is the server's trigger to install an application;
-here it is stored and logged, and the agent is what would carry it out. Storing a
-trigger we cannot execute would be the one thing this project refuses - so the
-value is readable back as "what the server asked for", never as "done".
+Read/write semantics, explicitly - the ids fall into two kinds and nothing here
+blurs them:
+
+  LIVE DEVICE STATE - none. There is no wds daemon on this device to measure.
+
+  STORED INTENT - all seventeen. A write is persisted verbatim to STORE and read
+  back verbatim. The value means "this is what the server asked for", never
+  "this is in effect". `applicationinstancepackage` is the sharp case: it is the
+  server's install-this-application trigger, and this API neither installs
+  applications nor claims to.
+
+Who acts on the intent: the sibling `edge-commissioning-service`, by polling
+these ids over this same REST API on its own schedule. There is no callback, no
+message bus and no notification from here - the sibling polls, and that is
+enough. Nothing in this module knows the sibling exists.
 """
 import json
 import os
@@ -100,10 +110,10 @@ def _setter(pid, kind):
 
 
 def _deployment_trigger(value):
-    """The server's install-this-application trigger. Recorded, not executed:
-    installing an application instance package is the agent's job, and this
-    build has no agent. A client reads back exactly what it asked for and the
-    log says a deployment was requested, so nothing here can look applied."""
+    """The server's install-this-application trigger: stored intent, never a
+    live state. A client reads back exactly what it asked for, and the log says
+    a deployment was REQUESTED - so no reader can mistake the stored value for
+    an installed application."""
     # The server sends an object, not a string: a live WDS 1.3.1 target reads
     # {"startTime": null, "fileReference": "7176bcfd-…"}. Both shapes are taken
     # and stored verbatim, because the agent needs the fileReference and we must

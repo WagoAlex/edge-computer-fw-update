@@ -22,9 +22,24 @@ nothing is granted. Forwarding is the exception and is opt-in: it needs
 system agrees - on a real CC100 `customname` is "" while `currentname` is
 `CC100-592E6C`, and this build must not fabricate that relationship either way.
 
-NOT writable here, deliberately: anything carrying an IP address (bridge
-addresses, gateways, static routes). That is the one class of change that can
-strand the device, and it is out of scope by standing rule.
+IP configuration IS writable now, on the two ids WAGO's own model names:
+
+    0-0-networking-bridges-<N>-ipconfiguration-addresses
+    0-0-networking-bridges-<N>-ipconfiguration-staticdefaultgateway
+
+That reverses the previous standing rule, and it is the one write here that can
+strand the device: removing the address a caller is talking to drops that
+caller. It exists because the WDS twin sets a device's address through exactly
+those ids, and because the sibling edge-commissioning-service - which used to
+serve a second, unauthenticated WDA on :8080 with its own
+`0-0-networking-configure` method - is being deleted, so this API is now the
+only surface that can do it. Static routes stay out of scope.
+
+THE WRITER IS NetworkManager, and only NetworkManager. Measured on the edge
+2026-09-02: `systemctl is-active` says systemd-networkd *inactive*,
+NetworkManager *active*, systemd-resolved *inactive*. The sibling's networkd
+drop-in writer would have written /etc/systemd/network/10-X1.network, reported
+success, and changed nothing on this hardware - so it is not ported.
 
 CAVEAT (deploy shape): a container has its own network namespace, so X1/X2 are
 only visible with `network_mode: host`. Without it these read as absent
@@ -108,11 +123,26 @@ DOCKER_IFACE = re.compile(r"^(docker\d*|br-[0-9a-f]{12}|veth[0-9a-f]+)$")
 
 
 def bridges():
-    """{instance id: ifname} for every WAGO bridge, sorted so ids are stable."""
+    """{instance id: ifname} for every WAGO bridge, sorted so ids are stable.
+
+    Fallback, and it matters: WDA puts every IP address under Bridges/N/
+    IPConfiguration, and the FW31 cassette duly shows Bridges 1 and 2. A device
+    whose NICs NetworkManager manages directly has no Linux bridge at all - on
+    the edge (2026-09-02) the only bridge devices are Docker's, and X1 carries
+    192.168.2.17/24 itself - so with a strict reading this API would report no
+    bridges and therefore no IP address anywhere. When no WAGO bridge exists the
+    L3 interface IS the port, and each addressed port is served as the Bridge
+    instance with the port's own number: X1 -> Bridge 1. That is what the
+    sibling's :8080 server was reporting as ethernetports-N-currentIpaddr; this
+    is the same fact under the id a real PFC300 uses.
+    """
     found = sorted(n for n in _ifaces()
                    if os.path.isdir(os.path.join(SYS, n, "bridge"))
                    and not DOCKER_IFACE.match(n))
-    return {i + 1: n for i, n in enumerate(found)}
+    if found:
+        return {i + 1: n for i, n in enumerate(found)}
+    return {idx: dev for idx, (_name, dev) in ports().items()
+            if dev in _ifaces() and _addresses(dev)}
 
 
 # ---- ethernet ports -------------------------------------------------------
@@ -145,7 +175,10 @@ def _port(idx, attr):
 
 def _bridge(idx, attr):
     ifname = bridges().get(idx)
-    present = ifname in _ifaces() and os.path.isdir(os.path.join(SYS, ifname, "bridge"))
+    present = ifname in _ifaces()
+    # A fallback instance is a plain port, not a bridge device, so anything that
+    # reads /sys/class/net/<if>/brif has to branch on this rather than assume it.
+    is_bridge = present and os.path.isdir(os.path.join(SYS, ifname, "bridge"))
     if attr == "label":
         return f"Bridge {idx}"
     if attr == "name":
@@ -155,6 +188,8 @@ def _bridge(idx, attr):
     if attr == "connectedethernetports":
         if not present:
             return []
+        if not is_bridge:
+            return [idx]                 # the port is its own L3 interface
         try:
             members = set(os.listdir(os.path.join(SYS, ifname, "brif")))
         except OSError:
@@ -164,6 +199,12 @@ def _bridge(idx, attr):
         return sorted(i for i, (_n, dev) in ports().items() if dev in members)
     if attr == "ipconfiguration-currentaddresses":
         return _addresses(ifname) if present else []
+    # Addresses / StaticDefaultGateway are the CONFIGURED twins - the operator's
+    # intent on the NM profile, empty on DHCP even while the link holds a lease.
+    if attr == "ipconfiguration-addresses":
+        return nmcfg.static_ipv4(ifname)[0] if present else []
+    if attr == "ipconfiguration-staticdefaultgateway":
+        return nmcfg.static_ipv4(ifname)[1] if present else ""
     if attr == "ipconfiguration-currentdefaultgateway":
         if not present:
             return ""
@@ -437,6 +478,91 @@ def w_ipforwarding(value):
     return value
 
 
+# ---- IP configuration: the writable bridge twins ---------------------------
+
+def _ip_writer(idx):
+    """The NM-managed interface behind Bridge <idx>, or a WriteError saying why
+    this device cannot be written."""
+    dev = bridges().get(idx)
+    if not dev:
+        raise WriteError(404, f"no bridge instance {idx}")
+    if not nmcfg.available():
+        raise WriteError(503, "NetworkManager is not on the bus; this build has no "
+                              "other writer for IP configuration (systemd-networkd "
+                              "is inactive on the edge, so a drop-in would be a "
+                              "silent no-op)")
+    return dev
+
+
+def _check_addresses(value):
+    if not isinstance(value, list):
+        raise WriteError(400, "expected an array of address/prefix strings")
+    out = []
+    for item in value:
+        if not isinstance(item, str):
+            raise WriteError(400, "addresses must be strings")
+        # The prefix must be written out. ip_interface() would take a bare
+        # "192.168.2.17" as /32, which is a host route on its own subnet - the
+        # device answers nothing and there is no way back in. An operator who
+        # omitted the prefix meant /24, not /32, so refuse instead of guessing.
+        if "/" not in item:
+            raise WriteError(400, f"address needs an explicit prefix: {item}")
+        try:
+            net = ipaddress.ip_interface(item)
+        except ValueError:
+            raise WriteError(400, f"not an address/prefix: {item}")
+        if net.version != 4:
+            raise WriteError(400, f"IPv4 only on this id: {item}")
+        cidr = f"{net.ip}/{net.network.prefixlen}"
+        if cidr in out:
+            raise WriteError(400, f"duplicate address: {cidr}")
+        out.append(cidr)
+    return out
+
+
+def w_addresses(idx):
+    def write(value):
+        addrs = _check_addresses(value)
+        dev = _ip_writer(idx)
+        _old, gw = nmcfg.static_ipv4(dev)      # keep the gateway; it has its own id
+        try:
+            live, detail = nmcfg.set_static_ipv4(dev, addrs, gw)
+        except nmcfg.NMError as e:
+            raise WriteError(503, f"NetworkManager refused the change on {dev}: {e}")
+        # WARNING, not INFO: this is the write that can end the conversation.
+        wdalog.write.warning("addresses on %s set to %s%s - a client reaching this "
+                             "device on a removed address loses it now",
+                             dev, addrs or "DHCP",
+                             "" if live else f" ({detail})")
+        return addrs
+    return write
+
+
+def w_gateway(idx):
+    def write(value):
+        if not isinstance(value, str):
+            raise WriteError(400, "expected a string")
+        if value:
+            try:
+                if ipaddress.ip_address(value).version != 4:
+                    raise WriteError(400, "IPv4 only on this id")
+            except ValueError:
+                raise WriteError(400, f"not an IP address: {value}")
+        dev = _ip_writer(idx)
+        addrs, _old = nmcfg.static_ipv4(dev)
+        if value and not addrs:
+            raise WriteError(400, "a static gateway needs a static address first: "
+                                  "set ipconfiguration-addresses on this bridge")
+        try:
+            live, detail = nmcfg.set_static_ipv4(dev, addrs, value)
+        except nmcfg.NMError as e:
+            raise WriteError(503, f"NetworkManager refused the change on {dev}: {e}")
+        wdalog.write.warning("default gateway on %s set to %s%s", dev,
+                             value or "DHCP", "" if live else f" ({detail})")
+        return value
+    return write
+
+
 def reapply():
     """Push stored custom values back at start. resolved's SetLinkDNS is runtime
     state, so without this a container restart silently drops the configured
@@ -462,7 +588,9 @@ def reapply():
 PORT_ATTRS = ("name", "enabled", "haslink", "macaddress", "currentspeedduplex")
 BRIDGE_ATTRS = ("label", "name", "macaddress", "connectedethernetports",
                 "ipconfiguration-currentaddresses",
-                "ipconfiguration-currentdefaultgateway")
+                "ipconfiguration-currentdefaultgateway",
+                "ipconfiguration-addresses",
+                "ipconfiguration-staticdefaultgateway")
 
 PARAMS = {
     "0-0-networking-hostname-currentname": _hostname,
@@ -506,3 +634,26 @@ WRITES = {"0-0-networking-hostname-customname": w_hostname,
           "0-0-networking-domain-customdomain": w_domain,
           "0-0-networking-dns-customdnsservers": w_dns,
           "0-0-networking-routing-ipforwarding-enabled": w_ipforwarding}
+
+# Instance writes. Bridges are discovered at runtime (an expansion card adds
+# X11/X12), so these ids cannot be a fixed dict - the registry resolves them the
+# same way it resolves instance reads.
+_WRITE_INSTANCE_RE = re.compile(
+    r"^0-0-networking-bridges-(\d+)-ipconfiguration-"
+    r"(addresses|staticdefaultgateway)$")
+
+
+def WRITE_RESOLVE(pid):
+    m = _WRITE_INSTANCE_RE.match(pid)
+    if not m or int(m.group(1)) not in bridges():
+        return None
+    idx = int(m.group(1))
+    return w_addresses(idx) if m.group(2) == "addresses" else w_gateway(idx)
+
+
+def WRITABLE_NOW():
+    """The instance ids that are writable on THIS device right now - what the
+    generated spec advertises, so it cannot promise an id we would 404."""
+    return [f"0-0-networking-bridges-{i}-ipconfiguration-{a}"
+            for i in sorted(bridges())
+            for a in ("addresses", "staticdefaultgateway")]

@@ -4,12 +4,16 @@ Each provider module exports any of:
   PARAMS  : {param-id: () -> value}          fixed IDs
   RESOLVE : (param-id) -> value | NOTFOUND   dynamic IDs (e.g. localusers-<uid>)
   WRITES  : {param-id: (value) -> effective} writable IDs; raises WriteError
+  WRITE_RESOLVE : (param-id) -> writer | None    writable instance IDs
+  WRITABLE_NOW  : () -> [param-id]               those IDs, for the spec
   METHODS : {method-id: (inargs) -> (outArgs|None, dsc|None, detail)}
   ENUMS   : {param-id: {int: name}}          served at /parameter-definitions/../enum
 
-A parameter is writable if and only if it is in WRITES; that same set is what
-`writeable` reports on a parameter definition, so a client cannot be told one
-thing and refused another.
+A parameter is writable if and only if some provider hands back a writer for it;
+that same answer is what `writeable` reports on a parameter definition and what
+the generated spec advertises, so a client cannot be told one thing and refused
+another. WRITE_RESOLVE exists for the same reason RESOLVE does: bridge instances
+are discovered at runtime and cannot be keys in an import-time dict.
 
 ponytail: a dict merge, not a plugin framework. Providers are imported explicitly
 below - a directory scan would buy nothing and hide import errors.
@@ -63,6 +67,8 @@ for _m in _MODULES:
     ENUMS.update(getattr(_m, "ENUMS", {}))
     WRITES.update(getattr(_m, "WRITES", {}))
 _RESOLVERS = [_m.RESOLVE for _m in _MODULES if hasattr(_m, "RESOLVE")]
+_WRITE_RESOLVERS = [_m.WRITE_RESOLVE for _m in _MODULES if hasattr(_m, "WRITE_RESOLVE")]
+_WRITABLE_NOW = [_m.WRITABLE_NOW for _m in _MODULES if hasattr(_m, "WRITABLE_NOW")]
 
 
 def param_value(pid):
@@ -77,8 +83,28 @@ def param_value(pid):
     return None
 
 
+def _writer(pid):
+    fn = WRITES.get(pid)
+    if fn is not None:
+        return fn
+    for r in _WRITE_RESOLVERS:
+        fn = r(pid)
+        if fn is not None:
+            return fn
+    return None
+
+
 def writable(pid):
-    return pid in WRITES
+    return _writer(pid) is not None
+
+
+def writable_ids():
+    """Every id writable on this device right now: the fixed set plus whatever
+    instance ids the providers currently resolve."""
+    ids = set(WRITES)
+    for now in _WRITABLE_NOW:
+        ids.update(now())
+    return sorted(ids)
 
 
 def set_param(pid, value):
@@ -86,4 +112,7 @@ def set_param(pid, value):
     what it was given, and WDA distinguishes that case (200 with the effective
     value) from a verbatim write (204). Raises WriteError; KeyError if the id is
     not writable, which the transport turns into a 404 like any unknown id."""
-    return WRITES[pid](value)
+    fn = _writer(pid)
+    if fn is None:
+        raise KeyError(pid)
+    return fn(value)

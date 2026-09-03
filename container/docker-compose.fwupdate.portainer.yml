@@ -1,0 +1,89 @@
+# Portainer stack: standalone one-shot firmware update. No REST API, no server.
+#
+# This is the OTHER role of the same project: hand the host's rauc.service a
+# bundle, flash the inactive A/B slot, print a summary, exit. Use it when you
+# just want the device updated and do not need the WDA API.
+#
+# Paste into Portainer -> Stacks -> Add stack -> Web editor, deploy.
+#
+# READ THIS FIRST - a one-shot in Portainer looks like a failure and is not:
+#   * the container runs once and EXITS. Portainer shows it "Exited (0)".
+#     Exit 0 is success; any other code is a real failure.
+#   * the update summary is in the container LOG, which is the only place it
+#     exists. Read it before removing the stack.
+#   * `restart: "no"` is mandatory. With `unless-stopped` the container would
+#     re-flash the inactive slot on every Docker restart, forever.
+#   * to run it again after it has exited: Portainer -> Containers ->
+#     wago-edge-fwupdate -> Recreate. Redeploying the stack also works.
+#
+# COEXISTS with the wago-edge-wda-api stack: different container name, no port,
+# no host network. They do share /docker/rauc-stage and the host rauc.service,
+# so do not run a REST update at the same time as this one - rauc takes one
+# install at a time and the second gets a busy error.
+#
+# DRY_RUN=true is the default here on purpose: the first deploy proves the D-Bus
+# socket, the keyring and the bundle signature without touching a slot. Set it
+# to false when the dry run has passed.
+#
+# Stack environment variables:
+#   DRY_RUN   true (default) verify only | false actually flash
+#   REBOOT    false (default) | true reboot the host when the flash succeeds
+services:
+
+  wago-edge-fwupdate:
+    # 2.8 GB: the ~1.3 GB .raucb is baked in, so there is nothing to pre-place
+    # on the device. To supply your own bundle instead, use the smaller
+    # api-latest image and the two commented lines at the bottom.
+    image: wagoalex/wago-fw-update-edge-computer:bundle-latest
+    container_name: wago-edge-fwupdate
+
+    # Never restart. See the note above - this is not a service.
+    restart: "no"
+
+    environment:
+      MODE: oneshot
+      # Verify only. Change to "false" to write the inactive slot.
+      DRY_RUN: ${DRY_RUN:-true}
+      # Opt-in, off by default: a container that reboots its own host loses the
+      # success log and its exit status, and turns a rollout into an outage.
+      # Leave it false and reboot when you choose.
+      REBOOT: ${REBOOT:-false}
+
+    volumes:
+      # Reaches the host rauc.service. Without it the run stops immediately
+      # with "cannot reach host rauc.service over D-Bus".
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      # Signature verification. If this file does not exist on the host, Docker
+      # silently creates a DIRECTORY here and the run fails on the keyring
+      # check - confirm it is a file before deploying.
+      - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+      # SAME path on host and in the container. rauc runs host-side and resolves
+      # this path there, so it must be identical on both ends or it sees nothing.
+      - /docker/rauc-stage:/docker/rauc-stage
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# The flash is only half the update - the same half the REST API stops at:
+#
+#   next boot:  rootfs.2   <-- staged, not yet active
+#
+# The device keeps running the old slot until it reboots, and the bootloader
+# falls back unless the new slot is marked good once it is running. So:
+#
+#   1. reboot          REBOOT=true above, or on the device, when you choose
+#   2. confirm         on the host:  rauc status mark-good booted
+#                      or over REST: 0-0-firmwareupdate-confirm
+#
+# Without step 2 the next reboot rolls back to the old slot, which looks like
+# "the update did not take" and is actually RAUC doing its job.
+#
+# Your own bundle instead of the embedded one - swap the image and add these:
+#   image: wagoalex/wago-fw-update-edge-computer:api-latest
+#   environment:
+#     BUNDLE: /firmware/bundle.raucb
+#   volumes:
+#     - /docker/firmware/my-firmware.raucb:/firmware/bundle.raucb:ro

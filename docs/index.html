@@ -437,7 +437,7 @@
         <b>4</b><strong>Unconfirmed</strong><em>Inactive slot written and marked for next boot. Waiting for <code>finish</code>.</em>
       </div>
       <div class="st">
-        <b>8</b><strong>Finished</strong><em><code>rauc status mark-good</code> ran. <code>clear</code> returns to Inactive.</em>
+        <b>8</b><strong>Finished</strong><em>Flashed and staged for the next boot. Nothing is confirmed yet. <code>clear</code> returns to Inactive.</em>
       </div>
       <div class="st err">
         <b>7</b><strong>Error</strong><em>Read <code>errorcause</code>: 200 is a signature reject, 600 a failed install.</em>
@@ -590,7 +590,7 @@ done</pre>
             <div class="n">5</div>
             <div>
               <h4>Finish at status 4</h4>
-              <p>Runs <code>rauc status mark-good</code> and moves to Finished (8). Called in any other status it returns an error run with detail <code>not finishable in status N</code>.</p>
+              <p>Moves to Finished (8): the bundle is written to the inactive slot and staged for the next boot. It does <strong>not</strong> mark anything good, because the device is still running the old slot and <code>rauc status mark-good</code> would confirm the slot being replaced. Read <code>0-0-firmwareupdate-pendingslot</code> to see what is staged, then <code>reboot</code> (opt-in, <code>Confirm=true</code>) and <code>confirm</code> once it is running. Called in any other status it returns an error run with detail <code>not finishable in status N</code>.</p>
 <pre>curl -sk -u admin:$PW -X POST \
   <b>.../0-0-firmwareupdate-finish/runs</b>?result-behavior=sync -d '{}'</pre>
             </div>

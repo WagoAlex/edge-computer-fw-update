@@ -150,6 +150,66 @@ def set_search_domain(ifname, domain):
     return _commit(dbus, dev, conn, settings, "search domain")
 
 
+def static_ipv4(ifname):
+    """(["ip/prefix", ...], gateway) as CONFIGURED on the profile behind ifname.
+
+    Not the live address: this is WDA's Addresses/StaticDefaultGateway, the
+    operator's intent, which is empty on a DHCP profile even while the link
+    holds a lease. CurrentAddresses is the live one and comes from `ip`.
+    """
+    try:
+        dbus, bus = _bus()
+        _dev, _conn, settings = _connection(dbus, bus, ifname)
+    except Exception:
+        return [], ""
+    ip4 = settings.get("ipv4", {})
+    out = []
+    for a in ip4.get("address-data", []):
+        try:
+            out.append(f"{a['address']}/{int(a['prefix'])}")
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out, str(ip4.get("gateway", "") or "")
+
+
+def set_static_ipv4(ifname, addresses, gateway):
+    """Write ipv4 addresses + gateway on the profile behind ifname.
+
+    An empty address list is not a no-op: it sets method=auto, i.e. hands the
+    link back to DHCP, which is the only sane meaning of "clear the static
+    addresses". (applied_live, detail).
+
+    WARNING - this is the one write on this device that can strand it. Removing
+    the address a caller is talking to drops that caller, and Reapply makes the
+    change live immediately. The only guard here is that the whole profile is
+    read, mutated and written back, so nothing else in it is lost.
+    """
+    dbus, bus = _bus()
+    try:
+        dev, conn, settings = _connection(dbus, bus, ifname)
+    except NMError:
+        raise
+    except Exception as e:
+        raise NMError(f"NetworkManager refused to describe {ifname}: {e}")
+    ip4 = settings.setdefault("ipv4", dbus.Dictionary({}, signature="sv"))
+    # The deprecated au-triplet form wins over address-data where both are
+    # present, so it has to go or the write silently does nothing.
+    ip4.pop("addresses", None)
+    data = []
+    for cidr in addresses:
+        net = ipaddress.ip_interface(cidr)
+        data.append(dbus.Dictionary({"address": dbus.String(str(net.ip)),
+                                     "prefix": dbus.UInt32(net.network.prefixlen)},
+                                    signature="sv"))
+    ip4["address-data"] = dbus.Array(data, signature="a{sv}")
+    ip4["method"] = dbus.String("manual" if data else "auto")
+    if gateway and data:
+        ip4["gateway"] = dbus.String(gateway)
+    else:
+        ip4.pop("gateway", None)          # a gateway without an address is invalid
+    return _commit(dbus, dev, conn, settings, "IPv4 address")
+
+
 def set_dns(ifname, servers):
     """Set DNS on the profile behind `ifname`. (applied_live, detail).
 

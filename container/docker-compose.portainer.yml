@@ -1,21 +1,38 @@
-# Portainer stack: the WDA-compatible REST API on the edge, no embedded bundle.
+# Portainer stack: the WDA REST API on the edge - the DEVICE half, on its own.
 #
-# Paste this into Portainer -> Stacks -> Add stack -> Web editor, set the two
-# environment variables below in the stack's own "Environment variables" box,
-# and deploy. Differences from docker-compose.api.yml that matter in Portainer:
+# Paste into Portainer -> Stacks -> Add stack -> Web editor, set the variables
+# in the stack's own "Environment variables" box, deploy.
 #
-#   * absolute host paths only - a stack has no build context, so `./data`
-#     would resolve somewhere you did not intend,
-#   * no `${VAR:?}` guards - Portainer does not fail a stack on them, it
-#     substitutes empty, so the password is a plain variable you must set,
-#   * `network_mode: host` binds PORT on the device directly. Port 443 is
-#     already taken if the current wago-edge-wda-api stack is still running:
-#     stop that stack first, or set PORT to something free.
+# This is the ONLY WDA server on the device: every 0-0-* parameter, the RAUC
+# firmware-update state machine, and activation. The sibling project
+# edge-commissioning-service is a pure HTTP client of it.
+#
+# PAIRS WITH THE COMMISSIONING PROJECT. The service block below is identical to
+# the wago-edge-wda-api service in edge-commissioning-service's own
+# docker-compose.portainer.yml - same service name, container name, image, env,
+# mounts and healthcheck - so the two are interchangeable:
+#
+#   this file          device half only (no Device Sphere)
+#   sibling's file     device half + commissioning agent, one stack
+#
+# Run ONE of them, never both: they claim the same container name and the same
+# PORT. To add Device Sphere later, delete this stack and deploy the sibling's.
+#
+# Portainer specifics, learned the hard way:
+#   * no `build:` - a stack has no build context, the image comes from the registry
+#   * no `${VAR:?}` guards - Portainer substitutes empty instead of failing, so a
+#     missing WDA_PASSWORD would deploy a broken stack silently
+#   * absolute host paths only - `./data` would resolve somewhere you did not intend
+#   * `network_mode: host` binds PORT directly; 443 is taken if an older
+#     wago-edge-wda-api stack is still up. Stop it first or set PORT=18443.
 #
 # Required stack environment variables:
-#   WDA_PASSWORD   the Basic-auth password (there is no safe default)
-#   PORT           443 to replace the existing deployment, else e.g. 18443
+#   WDA_PASSWORD   Basic-auth password for the WDA API. No safe default.
+#
+# Worth setting:
+#   PORT           443 normally, 18443 to run beside an existing stack
 services:
+
   wago-edge-wda-api:
     image: wagoalex/wago-fw-update-edge-computer:api-latest
     container_name: wago-edge-wda-api
@@ -31,19 +48,25 @@ services:
       ORDER_NUMBER: ${ORDER_NUMBER:-0752-9xxx}
       FIRMWARE_VERSION: ${FIRMWARE_VERSION:-04.01.00}
       PASSWD_FILE: /host/etc/passwd
-      # Writable hostname/DNS: values live here and are re-applied at start.
       NETWORK_CUSTOM_STORE: /app/data/network-custom.json
 
     volumes:
-      # The one mount the writes depend on: hostname1 and NetworkManager are
-      # reached over this socket, the same way rauc is.
+      # hostname1, NetworkManager and rauc are all reached over this socket.
+      # This is what makes the writable parameters work without a privilege:
+      # systemd or NetworkManager does the privileged part, polkit decides.
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - /etc/rauc/keyring.pem:/etc/rauc/keyring.pem:ro
+      # SAME path on host and in the container - rauc resolves it host-side.
       - /docker/rauc-stage:/docker/rauc-stage
       - /docker/wda/data:/app/data
       - /etc/passwd:/host/etc/passwd:ro
+      # Opt-in, and only if you want 0-0-networking-routing-ipforwarding-enabled
+      # to be writable. Without it that one id answers 503 naming this mount.
+      # - /etc/sysctl.d:/etc/sysctl.d
 
     healthcheck:
+      # python3, not curl: the image ships neither curl nor wget. Tries https
+      # then http, so it still works with WDA_TLS=false.
       test:
         - CMD
         - python3
@@ -70,3 +93,21 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+# After deploying, the startup line in the container log tells you what this
+# build actually serves:
+#
+#   listening on https://0.0.0.0:443 ... params=59+dynamic writable=10 methods=15
+#
+# Firmware over REST (no bundle in this image - upload one):
+#   activate -> getuploadids -> PATCH /files/{id} -> start -> finish
+#   then     -> 0-0-firmwareupdate-reboot (inArgs Confirm=true)  EXPLICIT
+#   then     -> 0-0-firmwareupdate-confirm                       after the reboot
+#
+# Read the activation state back at any time, including after a restart - it
+# comes from rauc, not from the container's memory:
+#   0-0-firmwareupdate-activationstate   4 Unconfirmed / 5 Confirmed / 9 no rauc
+#   0-0-firmwareupdate-pendingslot       the slot staged for the next boot
+#
+# Every id a client asks for that this build does not serve is logged once:
+#   docker logs wago-edge-wda-api 2>&1 | grep -o 'unimplemented .*' | sort -u
